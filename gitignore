@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Enrichment intermediaries (large files)
+enrichment/journal_database_enriched_*.json
+enrichment/cache_*
+
+# Don't ignore data/ — we need embeddings + journal DB on the server
+# But DO ignore very large intermediary files
+data/*.tmp

@@ -1,0 +1,15 @@
+# ─── Core ─────────────────────────────────────────────────────
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.0.0
+numpy>=1.24.0
+
+# ─── Report generation ────────────────────────────────────────
+python-docx>=1.1.0
+
+# ─── Data pipeline ────────────────────────────────────────────
+openpyxl>=3.1.0
+
+# NOTE: sentence-transformers is NOT included.
+# Use API-based embeddings (OpenAI, Cohere, or Voyage) instead.
+# This keeps RAM under 200MB for free-tier cloud hosting.

@@ -1,0 +1,19 @@
+# render.yaml — Render Blueprint for Journal Recommender
+# Docs: https://docs.render.com/blueprint-spec
+
+services:
+  - type: web
+    name: journal-recommender
+    runtime: python
+    plan: free          # Change to "starter" ($7/mo) for always-on
+    buildCommand: pip install -r requirements-deploy.txt
+    startCommand: python app.py --data-dir data --llm gemini --embedding-provider gemini --host 0.0.0.0 --port $PORT
+    envVars:
+      # ─── Single API key for both LLM and embeddings ────────
+      - key: GEMINI_API_KEY
+        sync: false            # You'll set this in Render dashboard
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: EMBEDDING_PROVIDER
+        value: gemini
+    autoDeploy: true           # Redeploy on git push

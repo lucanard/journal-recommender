@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Journal Recommender</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-deep: #0B1120;
+      --bg-mid: #111B2E;
+      --bg-card: #162036;
+      --bg-card-hover: #1A2744;
+      --bg-input: #0D1526;
+      --border: #1E2D4A;
+      --border-focus: #D4A041;
+      --border-subtle: #1A2640;
+      --gold: #D4A041;
+      --gold-dim: #B8872E;
+      --gold-glow: #D4A04130;
+      --gold-soft: #D4A04118;
+      --amber: #E8B54D;
+      --green: #3EBF6F;
+      --green-bg: #3EBF6F15;
+      --green-border: #3EBF6F30;
+      --yellow: #E8B54D;
+      --yellow-bg: #E8B54D12;
+      --yellow-border: #E8B54D25;
+      --red: #E85D5D;
+      --red-bg: #E85D5D12;
+      --text: #E8E4DD;
+      --text-mid: #A8A29D;
+      --text-muted: #6B6560;
+      --text-dim: #4A453F;
+      --display: 'Cormorant Garamond', 'Georgia', serif;
+      --body: 'DM Sans', 'Segoe UI', sans-serif;
+      --mono: 'JetBrains Mono', 'Menlo', monospace;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--body); background: var(--bg-deep);
+      color: var(--text); min-height: 100vh; overflow-x: hidden;
+    }
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, #1a2d5a22 0%, transparent 70%),
+        radial-gradient(ellipse 60% 50% at 80% 80%, #2a1a0a18 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+    body::after {
+      content: ''; position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0; opacity: 0.5;
+    }
+    #root { position: relative; z-index: 1; }
+    ::selection { background: var(--gold-glow); color: var(--amber); }
+    textarea, input, select, button { font-family: inherit; }
+    textarea:focus, input:focus, select:focus { outline: none; border-color: var(--border-focus) !important; box-shadow: 0 0 0 3px var(--gold-soft); }
+    textarea, input[type="text"], input[type="number"], select { transition: border-color 0.2s, box-shadow 0.2s; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .stagger-1 { animation: fadeUp 0.5s ease both 0.05s; }
+    .stagger-2 { animation: fadeUp 0.5s ease both 0.1s; }
+    .stagger-3 { animation: fadeUp 0.5s ease both 0.15s; }
+    .stagger-4 { animation: fadeUp 0.5s ease both 0.2s; }
+    .stagger-5 { animation: fadeUp 0.5s ease both 0.25s; }
+    input[type="range"] { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; outline: none; cursor: pointer; background: var(--border); }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--gold); border: 3px solid var(--bg-card); box-shadow: 0 0 8px var(--gold-glow); cursor: pointer; }
+    input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--gold); border: 3px solid var(--bg-card); box-shadow: 0 0 8px var(--gold-glow); cursor: pointer; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-deep); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.9/babel.min.js"></script>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const API_BASE = window.location.protocol === "file:"
+      ? "http://localhost:8000"     // Opening index.html directly from Desktop
+      : window.location.origin;     // Served by backend (localhost or Render)
+
+    const ARTICLE_TYPES = ["Original Research","Review Article","Case Report","Short Communication","Systematic Review","Meta-Analysis","Letter/Correspondence"];
+    const INDEXING_OPTIONS = ["PubMed/MEDLINE","DOAJ","Scopus","Web of Science"];
+    const OA_OPTIONS = ["Any","Open Access Only","Hybrid"];
+    const IMPACT_OPTIONS = ["Any","Q1 (High)","Q1-Q2","Q2-Q3","Q3-Q4"];
+    const DISCIPLINES = ["Any","Agricultural Sciences","Biochemistry & Molecular Biology","Biomedical Engineering","Chemistry","Clinical Medicine","Computer Science & AI","Earth & Environmental Sciences","Ecology & Evolution","Economics & Business","Education","Engineering","Epidemiology & Public Health","Food Science & Nutrition","Genetics & Genomics","Humanities & Social Sciences","Immunology","Law","Materials Science","Mathematics & Statistics","Microbiology","Neuroscience","Nursing & Health Professions","Pharmacology & Toxicology","Physics & Astronomy","Psychology & Psychiatry","Veterinary Science","Other"];
+
+    function SectionHeader({num,title,optional,extra}){
+      return(<div style={{display:"flex",alignItems:"baseline",gap:"10px",marginBottom:"12px"}}>
+        <span style={{fontFamily:"var(--mono)",fontSize:"11px",fontWeight:600,color:"var(--gold)",background:"var(--gold-soft)",padding:"2px 8px",borderRadius:"4px"}}>{num}</span>
+        <span style={{fontFamily:"var(--display)",fontSize:"20px",fontWeight:600,color:"var(--text)",letterSpacing:"-0.3px"}}>{title}</span>
+        {optional&&<span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)"}}>optional</span>}
+        {extra}
+      </div>);
+    }
+    function FieldLabel({label}){return(<div style={{fontFamily:"var(--body)",fontSize:"11px",fontWeight:600,color:"var(--text-muted)",marginBottom:"6px",textTransform:"uppercase",letterSpacing:"0.6px"}}>{label}</div>);}
+    function Sel({value,onChange,options}){return(<select value={value} onChange={onChange} style={{width:"100%",background:"var(--bg-input)",border:"1.5px solid var(--border)",borderRadius:"8px",fontFamily:"var(--body)",fontSize:"13px",color:"var(--text)",padding:"9px 12px",cursor:"pointer"}}>{options.map(o=><option key={o} value={o}>{o}</option>)}</select>);}
+    function TInput({value,onChange,placeholder,type,min,step}){return(<input type={type||"text"} value={value} onChange={onChange} placeholder={placeholder} min={min} step={step} style={{width:"100%",background:"var(--bg-input)",border:"1.5px solid var(--border)",borderRadius:"8px",fontFamily:"var(--body)",fontSize:"13px",color:"var(--text)",padding:"9px 12px"}}/>);}
+    function Pill({label,active,onClick}){return(<button onClick={onClick} style={{background:active?"var(--gold-soft)":"transparent",border:"1.5px solid "+(active?"var(--gold)":"var(--border)"),color:active?"var(--gold)":"var(--text-muted)",padding:"5px 16px",borderRadius:"20px",cursor:"pointer",fontFamily:"var(--body)",fontSize:"12px",fontWeight:active?600:400,transition:"all 0.15s"}}>{label}</button>);}
+    function Bdg({label,variant}){
+      const s={gold:{bg:"var(--gold-soft)",c:"var(--gold)",b:"var(--gold-glow)"},green:{bg:"var(--green-bg)",c:"var(--green)",b:"var(--green-border)"},muted:{bg:"var(--bg-card)",c:"var(--text-muted)",b:"var(--border)"},mono:{bg:"var(--bg-card)",c:"var(--text-dim)",b:"var(--border)"}}[variant]||{bg:"var(--bg-card)",c:"var(--text-muted)",b:"var(--border)"};
+      return(<span style={{background:s.bg,color:s.c,padding:"3px 10px",borderRadius:"4px",fontFamily:variant==="mono"?"var(--mono)":"var(--body)",fontSize:"11px",fontWeight:500,border:"1px solid "+s.b,whiteSpace:"nowrap"}}>{label}</span>);
+    }
+
+    function JournalCard({rec,fb,onFb,index}){
+      const fc={High:{c:"var(--green)",bg:"var(--green-bg)",b:"var(--green-border)"},Medium:{c:"var(--yellow)",bg:"var(--yellow-bg)",b:"var(--yellow-border)"},Low:{c:"var(--red)",bg:"var(--red-bg)",b:"var(--red)25"}}[rec.fit]||{c:"var(--yellow)",bg:"var(--yellow-bg)",b:"var(--yellow-border)"};
+      const[hover,setHover]=useState(false);
+      return(
+        <div className={"stagger-"+Math.min(index+1,5)} style={{background:hover?"var(--bg-card-hover)":"var(--bg-card)",border:"1px solid "+(hover?"var(--border-focus)30":"var(--border)"),borderRadius:"14px",padding:"24px 26px",marginBottom:"16px",transition:"all 0.25s",boxShadow:hover?"0 4px 24px #00000030":"none"}} onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"16px",gap:"12px"}}>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"baseline",gap:"10px",flexWrap:"wrap"}}>
+                <span style={{fontFamily:"var(--mono)",fontSize:"12px",fontWeight:600,color:"var(--gold)",background:"var(--gold-soft)",padding:"1px 8px",borderRadius:"4px"}}>#{rec.rank}</span>
+                <span style={{fontFamily:"var(--display)",fontSize:"20px",fontWeight:600,color:"var(--text)",letterSpacing:"-0.3px"}}>{rec.journal_name}</span>
+              </div>
+              <div style={{fontFamily:"var(--body)",fontSize:"13px",color:"var(--text-muted)",marginTop:"4px"}}>
+                {rec.publisher}
+                {rec.homepage&&<a href={rec.homepage} target="_blank" rel="noopener noreferrer" style={{marginLeft:"10px",color:"var(--gold-dim)",fontSize:"12px",textDecoration:"none"}}>Visit journal →</a>}
+              </div>
+            </div>
+            <span style={{background:fc.bg,color:fc.c,padding:"4px 14px",borderRadius:"20px",fontFamily:"var(--mono)",fontSize:"11px",fontWeight:600,border:"1px solid "+fc.b,whiteSpace:"nowrap"}}>{rec.fit} Fit</span>
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:"7px",marginBottom:"18px"}}>
+            {rec.oa_model&&<Bdg label={rec.oa_model} variant="gold"/>}
+            {rec.apc_estimate&&<Bdg label={rec.apc_estimate==="Free"||rec.apc_estimate==="N/A"?"No APC":"APC: "+rec.apc_estimate} variant="muted"/>}
+            {rec.impact_factor&&rec.impact_factor!=="?"&&rec.impact_factor!=="Unknown"&&<Bdg label={"IF: "+rec.impact_factor} variant="muted"/>}
+            {rec.indexing&&rec.indexing.map(ix=><Bdg key={ix} label={ix} variant="green"/>)}
+            {rec.impact_proxy&&rec.impact_proxy!=="Unknown"&&<Bdg label={rec.impact_proxy} variant="muted"/>}
+            {rec.acceptance_rate&&rec.acceptance_rate!=="N/A"&&rec.acceptance_rate!=="Not publicly available"&&<Bdg label={"Accept: "+rec.acceptance_rate} variant="muted"/>}
+            {rec.review_time&&rec.review_time!=="N/A"&&rec.review_time!=="Not publicly available"&&<Bdg label={"Review: "+rec.review_time} variant="muted"/>}
+            {rec.score>0&&<Bdg label={"Sim: "+rec.score.toFixed(3)} variant="mono"/>}
+          </div>
+          <div style={{marginBottom:"16px"}}>
+            <div style={{fontFamily:"var(--mono)",fontSize:"10px",fontWeight:600,color:"var(--gold-dim)",marginBottom:"10px",letterSpacing:"0.8px"}}>WHY IT MATCHES</div>
+            {rec.reasons&&rec.reasons.map((r,i)=>(
+              <div key={i} style={{fontFamily:"var(--body)",fontSize:"13.5px",color:"var(--text-mid)",lineHeight:1.7,paddingLeft:"20px",position:"relative",marginBottom:"4px"}}>
+                <span style={{position:"absolute",left:0,top:"1px",color:"var(--green)",fontSize:"13px",fontWeight:700}}>✓</span>{r}
+              </div>
+            ))}
+          </div>
+          {rec.concern&&(
+            <div style={{fontFamily:"var(--body)",fontSize:"13px",color:"var(--yellow)",background:"var(--yellow-bg)",padding:"11px 16px",borderRadius:"10px",borderLeft:"3px solid var(--yellow-border)",marginBottom:"16px",lineHeight:1.65}}>
+              <span style={{fontWeight:600}}>Note: </span>{rec.concern}
+            </div>
+          )}
+          {rec.subjects&&rec.subjects.length>0&&(
+            <div style={{marginBottom:"16px"}}>
+              <div style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)",marginBottom:"5px",letterSpacing:"0.5px"}}>SUBJECTS</div>
+              <div style={{fontFamily:"var(--body)",fontSize:"12px",color:"var(--text-muted)",lineHeight:1.6}}>{rec.subjects.join("  ·  ")}</div>
+            </div>
+          )}
+          <div style={{display:"flex",alignItems:"center",gap:"10px",borderTop:"1px solid var(--border)",paddingTop:"14px"}}>
+            <span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)",letterSpacing:"0.3px"}}>HELPFUL?</span>
+            {["up","down"].map(t=>(
+              <button key={t} onClick={()=>onFb(t)} style={{background:fb===t?"var(--gold-soft)":"transparent",border:"1.5px solid "+(fb===t?"var(--gold)":"var(--border)"),borderRadius:"6px",padding:"4px 10px",cursor:"pointer",fontSize:"14px",transition:"all 0.15s"}}>{t==="up"?"👍":"👎"}</button>
+            ))}
+            {fb&&<span style={{fontFamily:"var(--body)",fontSize:"12px",color:"var(--green)"}}>Recorded — thank you</span>}
+          </div>
+        </div>
+      );
+    }
+
+    function App(){
+      const[page,setPage]=useState("hero");
+      const[view,setView]=useState("input");
+      const[abstract,setAbstract]=useState("");
+      const[keywords,setKeywords]=useState("");
+      const[articleType,setArticleType]=useState("Original Research");
+      const[discipline,setDiscipline]=useState("Any");
+      const[introConclusion,setIntroConclusion]=useState("");
+      const[methods,setMethods]=useState("");
+      const[resultsSummary,setResultsSummary]=useState("");
+      const[showAdvanced,setShowAdvanced]=useState(false);
+      const[indexing,setIndexing]=useState([]);
+      const[oaPref,setOaPref]=useState("Any");
+      const[apcFreeOnly,setApcFreeOnly]=useState(false);
+      const[maxAPC,setMaxAPC]=useState("");
+      const[minIF,setMinIF]=useState("");
+      const[targetImpact,setTargetImpact]=useState("Any");
+      const[numResults,setNumResults]=useState(3);
+      const[results,setResults]=useState(null);
+      const[error,setError]=useState("");
+      const[feedback,setFeedback]=useState({});
+      const[apiStatus,setApiStatus]=useState(null);
+      const[loadPhase,setLoadPhase]=useState(0);
+      const[downloading,setDownloading]=useState(false);
+
+      useEffect(()=>{fetch(API_BASE+"/health").then(r=>r.json()).then(d=>setApiStatus(d)).catch(()=>setApiStatus(null));},[]);
+      const toggleIdx=(opt)=>setIndexing(prev=>prev.includes(opt)?prev.filter(i=>i!==opt):[...prev,opt]);
+      const filledSections=[introConclusion,methods,resultsSummary].filter(s=>s.trim().length>0).length;
+      const rangePercent=((numResults-1)/9*100);
+
+      const handleSubmit=async()=>{
+        if(abstract.trim().length<50){setError("Abstract must be at least 50 characters.");return;}
+        setError("");setView("loading");setLoadPhase(0);
+        [500,1500,3000].forEach((ms,i)=>setTimeout(()=>setLoadPhase(i+1),ms));
+        try{
+          const body={abstract:abstract.trim(),keywords:keywords.trim(),introduction_conclusion:introConclusion.trim(),methods:methods.trim(),results_summary:resultsSummary.trim(),article_type:articleType,discipline,indexing_required:indexing,oa_preference:oaPref,apc_free_only:apcFreeOnly,max_apc:maxAPC?parseFloat(maxAPC):null,min_impact_factor:minIF?parseFloat(minIF):null,target_impact:targetImpact!=="Any"?targetImpact:null,num_results:numResults};
+          const resp=await fetch(API_BASE+"/recommend",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+          if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.detail||"API error: "+resp.status);}
+          const data=await resp.json();setResults(data);setView("results");
+        }catch(err){setError(err.message||"Failed to connect.");setView("input");}
+      };
+      const sendFeedback=async(rec,type)=>{
+        setFeedback(prev=>({...prev,[rec.rank]:type}));
+        try{await fetch(API_BASE+"/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({recommendation_id:rec.rank,journal_name:rec.journal_name,feedback:type})});}catch{}
+      };
+      const handleReset=()=>{setView("input");setResults(null);setFeedback({});};
+
+      const handleDownload=async()=>{
+        if(!results)return;
+        setDownloading(true);
+        try{
+          const body={
+            results:results,
+            abstract:abstract.trim(),
+            constraints:{discipline,article_type:articleType,oa_preference:oaPref,apc_free_only:apcFreeOnly,max_apc:maxAPC?parseFloat(maxAPC):null,min_impact_factor:minIF?parseFloat(minIF):null,target_impact:targetImpact!=="Any"?targetImpact:null,indexing_required:indexing,keywords:keywords.trim()},
+          };
+          const resp=await fetch(API_BASE+"/report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+          if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.detail||"Download failed");}
+          const blob=await resp.blob();
+          const url=URL.createObjectURL(blob);
+          const a=document.createElement("a");
+          a.href=url;a.download="journal_recommendations.docx";document.body.appendChild(a);a.click();
+          document.body.removeChild(a);URL.revokeObjectURL(url);
+        }catch(err){setError(err.message||"Report download failed.");}
+        finally{setDownloading(false);}
+      };
+
+      // ══════ HERO ══════
+      if(page==="hero"){return(
+        <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px",textAlign:"center"}}>
+          <div style={{position:"absolute",top:"15%",left:"50%",transform:"translateX(-50%)",width:"500px",height:"300px",background:"radial-gradient(ellipse, var(--gold-glow) 0%, transparent 70%)",filter:"blur(60px)",pointerEvents:"none"}}/>
+          <div className="stagger-1" style={{fontFamily:"var(--mono)",fontSize:"11px",fontWeight:600,color:"var(--gold)",background:"var(--gold-soft)",padding:"6px 16px",borderRadius:"20px",border:"1px solid var(--gold-glow)",marginBottom:"28px",letterSpacing:"0.8px"}}>AI-POWERED RECOMMENDATIONS</div>
+          <h1 className="stagger-2" style={{fontFamily:"var(--display)",fontSize:"clamp(36px, 6vw, 58px)",fontWeight:600,lineHeight:1.15,marginBottom:"20px",maxWidth:"680px",letterSpacing:"-1px"}}>
+            Find Your Perfect{" "}<span style={{color:"var(--gold)",fontStyle:"italic"}}>Journal Match</span>
+          </h1>
+          <p className="stagger-3" style={{fontFamily:"var(--body)",fontSize:"17px",lineHeight:1.7,color:"var(--text-mid)",maxWidth:"520px",marginBottom:"36px"}}>
+            Paste your abstract. Our engine searches 9,000+ journals, filters by your constraints, and ranks matches using AI — in seconds.
+          </p>
+          <div className="stagger-4" style={{display:"flex",gap:"14px",flexWrap:"wrap",justifyContent:"center",marginBottom:"48px"}}>
+            <button onClick={()=>setPage("app")} style={{background:"var(--gold)",color:"var(--bg-deep)",border:"none",borderRadius:"10px",padding:"14px 32px",fontFamily:"var(--body)",fontSize:"15px",fontWeight:600,cursor:"pointer",transition:"all 0.2s",boxShadow:"0 4px 20px var(--gold-glow)"}}
+              onMouseEnter={e=>{e.target.style.background="var(--amber)";e.target.style.transform="translateY(-1px)";}}
+              onMouseLeave={e=>{e.target.style.background="var(--gold)";e.target.style.transform="translateY(0)";}}>
+              ◎ Find Matching Journals
+            </button>
+            <button onClick={()=>{const el=document.getElementById("how");if(el)el.scrollIntoView({behavior:"smooth"});}} style={{background:"transparent",color:"var(--text-mid)",border:"1.5px solid var(--border)",borderRadius:"10px",padding:"14px 28px",fontFamily:"var(--body)",fontSize:"15px",fontWeight:500,cursor:"pointer",transition:"all 0.2s"}}
+              onMouseEnter={e=>e.target.style.borderColor="var(--text-muted)"} onMouseLeave={e=>e.target.style.borderColor="var(--border)"}>
+              Ψ Learn How It Works
+            </button>
+          </div>
+          <div className="stagger-5" style={{display:"flex",gap:"48px",flexWrap:"wrap",justifyContent:"center"}}>
+            {[{v:"9,300+",l:"Journals indexed"},{v:"1–10",l:"Ranked matches"},{v:"Free",l:"Basic recommendations"}].map((s,i)=>(
+              <div key={i} style={{textAlign:"center"}}>
+                <div style={{fontFamily:"var(--display)",fontSize:"28px",fontWeight:700,color:"var(--gold)"}}>{s.v}</div>
+                <div style={{fontFamily:"var(--body)",fontSize:"13px",color:"var(--text-muted)",marginTop:"4px"}}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+          <div id="how" style={{marginTop:"80px",maxWidth:"640px",width:"100%"}}>
+            <h2 style={{fontFamily:"var(--display)",fontSize:"28px",fontWeight:600,marginBottom:"32px",letterSpacing:"-0.5px"}}>How it works</h2>
+            <div style={{display:"flex",flexDirection:"column",gap:"20px"}}>
+              {[{n:"01",t:"Paste your abstract",d:"Plus optional sections: introduction, methods, and key results for deeper matching."},{n:"02",t:"Set your constraints",d:"Discipline, indexing, OA preference, APC budget, and minimum impact factor."},{n:"03",t:"Get ranked results",d:"Semantic search across 9,300+ journals, filtered, then re-ranked by AI with detailed explanations."}].map((step,i)=>(
+                <div key={i} style={{display:"flex",gap:"18px",alignItems:"flex-start",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:"12px",padding:"20px 22px"}}>
+                  <span style={{fontFamily:"var(--mono)",fontSize:"12px",fontWeight:600,color:"var(--gold)",background:"var(--gold-soft)",padding:"4px 10px",borderRadius:"6px",flexShrink:0}}>{step.n}</span>
+                  <div>
+                    <div style={{fontFamily:"var(--display)",fontSize:"17px",fontWeight:600,color:"var(--text)",marginBottom:"4px"}}>{step.t}</div>
+                    <div style={{fontFamily:"var(--body)",fontSize:"13px",color:"var(--text-muted)",lineHeight:1.6}}>{step.d}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{marginTop:"48px",fontFamily:"var(--mono)",fontSize:"11px",color:apiStatus?"var(--green)":"var(--text-dim)",display:"flex",alignItems:"center",gap:"6px"}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:apiStatus?"var(--green)":"var(--text-dim)"}}/>
+            {apiStatus?(apiStatus.vector_store&&apiStatus.vector_store.total_journals?apiStatus.vector_store.total_journals.toLocaleString():"?")+" journals loaded"+(apiStatus.llm_enabled?" · LLM active":""):"Backend not connected — start with python app.py --data-dir data"}
+          </div>
+        </div>
+      );}
+
+      // ══════ APP ══════
+      return(
+        <div style={{minHeight:"100vh"}}>
+          <header style={{borderBottom:"1px solid var(--border)",background:"var(--bg-mid)ee",padding:"14px 32px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:10,backdropFilter:"blur(12px)"}}>
+            <div style={{display:"flex",alignItems:"baseline",gap:"12px"}}>
+              <button onClick={()=>setPage("hero")} style={{background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"var(--display)",fontSize:"20px",fontWeight:600,color:"var(--gold)",letterSpacing:"-0.5px"}}>Journal Recommender</button>
+              <span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)"}}>v1.1</span>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:"16px"}}>
+              {apiStatus&&<span style={{fontFamily:"var(--mono)",fontSize:"10px",color:apiStatus.status==="ok"?"var(--green)":"var(--yellow)",display:"flex",alignItems:"center",gap:"5px"}}><span style={{width:5,height:5,borderRadius:"50%",background:apiStatus.status==="ok"?"var(--green)":"var(--yellow)"}}/>{apiStatus.vector_store&&apiStatus.vector_store.total_journals?apiStatus.vector_store.total_journals.toLocaleString():"?"} journals{apiStatus.llm_enabled?" · LLM":""}</span>}
+              {view==="results"&&<button onClick={handleReset} style={{background:"transparent",border:"1px solid var(--border)",borderRadius:"6px",padding:"5px 14px",cursor:"pointer",fontFamily:"var(--body)",fontSize:"12px",color:"var(--text-muted)",transition:"border-color 0.15s"}} onMouseEnter={e=>e.target.style.borderColor="var(--text-dim)"} onMouseLeave={e=>e.target.style.borderColor="var(--border)"}>← New search</button>}
+            </div>
+          </header>
+
+          <div style={{maxWidth:780,margin:"0 auto",padding:"36px 24px 60px"}}>
+            {error&&<div style={{background:"var(--red-bg)",border:"1px solid var(--red)25",borderRadius:"10px",padding:"12px 16px",marginBottom:"20px",fontFamily:"var(--body)",fontSize:"13px",color:"var(--red)"}}>{error}</div>}
+
+            {/* INPUT */}
+            {view==="input"&&(<div>
+              {!apiStatus&&<div style={{background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:"10px",padding:"14px 18px",marginBottom:"24px",fontFamily:"var(--body)",fontSize:"13px",color:"var(--yellow)",lineHeight:1.6}}><strong>Backend not connected.</strong> Start with <code style={{fontFamily:"var(--mono)",fontSize:"12px",background:"var(--bg-card)",padding:"2px 6px",borderRadius:"4px"}}>python app.py --data-dir data</code></div>}
+
+              <div className="stagger-1">
+                <SectionHeader num="01" title="Your Abstract"/>
+                <textarea value={abstract} onChange={e=>setAbstract(e.target.value)} placeholder="Paste your manuscript abstract here. The more detail, the better the match..." style={{width:"100%",minHeight:180,background:"var(--bg-input)",border:"1.5px solid var(--border)",borderRadius:"12px",fontFamily:"var(--body)",fontSize:"14px",lineHeight:1.8,color:"var(--text)",padding:"18px 20px",resize:"vertical"}}/>
+                <div style={{fontFamily:"var(--mono)",fontSize:"11px",color:abstract.length>=50?"var(--green)":"var(--text-dim)",marginTop:"6px",textAlign:"right"}}>{abstract.length} chars {abstract.length>=50?"✓":"· min 50"}</div>
+              </div>
+
+              <div className="stagger-2" style={{marginTop:"28px"}}>
+                <SectionHeader num="02" title="Keywords" optional/>
+                <TInput value={keywords} onChange={e=>setKeywords(e.target.value)} placeholder="e.g., machine learning, drug discovery, cohort study"/>
+              </div>
+
+              <div className="stagger-3" style={{marginTop:"28px"}}>
+                <button onClick={()=>setShowAdvanced(!showAdvanced)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:"10px",width:"100%"}}>
+                  <span style={{fontFamily:"var(--mono)",fontSize:"11px",fontWeight:600,color:"var(--gold)",background:"var(--gold-soft)",padding:"2px 8px",borderRadius:"4px"}}>03</span>
+                  <span style={{fontFamily:"var(--display)",fontSize:"20px",fontWeight:600,color:"var(--text)"}}>Strengthen your match</span>
+                  <span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)"}}>optional</span>
+                  {filledSections>0&&<span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--green)",background:"var(--green-bg)",padding:"2px 8px",borderRadius:"10px",border:"1px solid var(--green-border)"}}>{filledSections} added</span>}
+                  <span style={{marginLeft:"auto",fontFamily:"var(--mono)",fontSize:"14px",color:"var(--text-dim)",display:"inline-block",transform:showAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.2s"}}>›</span>
+                </button>
+                {showAdvanced&&(
+                  <div style={{marginTop:"16px",padding:"22px",background:"var(--bg-card)",borderRadius:"14px",border:"1px solid var(--border)",display:"flex",flexDirection:"column",gap:"20px",animation:"fadeUp 0.25s ease"}}>
+                    <div style={{fontFamily:"var(--body)",fontSize:"12.5px",color:"var(--text-muted)",lineHeight:1.6}}>Additional sections improve matching accuracy. Each is independent — add whichever you have.</div>
+                    {[
+                      {label:"Introduction / Conclusion",hint:"Last paragraph of your Intro and/or Conclusion",value:introConclusion,set:setIntroConclusion,ph:"Paste the final paragraph of your Introduction and/or Conclusion..."},
+                      {label:"Materials & Methods",hint:"Helps match methodology-focused journals",value:methods,set:setMethods,ph:"Paste your Materials & Methods section..."},
+                      {label:"Key Results / Findings",hint:"Helps match journals publishing similar evidence",value:resultsSummary,set:setResultsSummary,ph:"Paste key results or findings..."},
+                    ].map((f,i)=>(
+                      <div key={i}>
+                        <FieldLabel label={f.label}/>
+                        <div style={{fontFamily:"var(--body)",fontSize:"11px",color:"var(--text-dim)",marginBottom:"6px"}}>{f.hint}</div>
+                        <textarea value={f.value} onChange={e=>f.set(e.target.value)} placeholder={f.ph} style={{width:"100%",minHeight:80,background:"var(--bg-input)",border:"1.5px solid var(--border)",borderRadius:"10px",fontFamily:"var(--body)",fontSize:"13px",lineHeight:1.7,color:"var(--text)",padding:"12px 14px",resize:"vertical"}}/>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="stagger-4" style={{marginTop:"28px"}}>
+                <SectionHeader num="04" title="Constraints & Preferences"/>
+                <div style={{background:"var(--bg-card)",borderRadius:"14px",padding:"22px 24px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"20px",border:"1px solid var(--border)"}}>
+                  <div><FieldLabel label="Article Type"/><Sel value={articleType} onChange={e=>setArticleType(e.target.value)} options={ARTICLE_TYPES}/></div>
+                  <div><FieldLabel label="Discipline"/><Sel value={discipline} onChange={e=>setDiscipline(e.target.value)} options={DISCIPLINES}/></div>
+                  <div><FieldLabel label="Open Access"/><Sel value={oaPref} onChange={e=>setOaPref(e.target.value)} options={OA_OPTIONS}/></div>
+                  <div><FieldLabel label="Target Impact"/><Sel value={targetImpact} onChange={e=>setTargetImpact(e.target.value)} options={IMPACT_OPTIONS}/></div>
+                  <div><FieldLabel label="Max APC (USD)"/><TInput type="number" value={maxAPC} onChange={e=>setMaxAPC(e.target.value)} placeholder="No limit" min="0"/></div>
+                  <div><FieldLabel label="Min Impact Factor"/><TInput type="number" value={minIF} onChange={e=>setMinIF(e.target.value)} placeholder="No minimum" min="0" step="0.1"/></div>
+                  <div style={{gridColumn:"1 / -1"}}>
+                    <button onClick={()=>setApcFreeOnly(!apcFreeOnly)} style={{display:"flex",alignItems:"center",gap:"12px",background:apcFreeOnly?"var(--green-bg)":"transparent",border:"1.5px solid "+(apcFreeOnly?"var(--green-border)":"var(--border)"),borderRadius:"10px",padding:"12px 18px",cursor:"pointer",width:"100%",transition:"all 0.15s",textAlign:"left"}}>
+                      <span style={{width:20,height:20,borderRadius:"5px",flexShrink:0,border:"2px solid "+(apcFreeOnly?"var(--green)":"var(--text-dim)"),background:apcFreeOnly?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}>
+                        {apcFreeOnly&&<span style={{color:"var(--bg-deep)",fontSize:"12px",fontWeight:800}}>✓</span>}
+                      </span>
+                      <div>
+                        <div style={{fontFamily:"var(--body)",fontSize:"13px",fontWeight:600,color:apcFreeOnly?"var(--green)":"var(--text-mid)"}}>Free to publish only</div>
+                        <div style={{fontFamily:"var(--body)",fontSize:"11px",color:"var(--text-dim)",marginTop:"2px"}}>Excludes mandatory APCs. Hybrid journals still included (subscription route).</div>
+                      </div>
+                    </button>
+                  </div>
+                  <div style={{gridColumn:"1 / -1"}}><FieldLabel label="Required Indexing"/><div style={{display:"flex",flexWrap:"wrap",gap:"8px"}}>{INDEXING_OPTIONS.map(opt=><Pill key={opt} label={opt} active={indexing.includes(opt)} onClick={()=>toggleIdx(opt)}/>)}</div></div>
+                  <div style={{gridColumn:"1 / -1"}}><FieldLabel label={"Results: "+numResults}/><div style={{display:"flex",alignItems:"center",gap:"12px"}}><span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)"}}>1</span><input type="range" min={1} max={10} value={numResults} onChange={e=>setNumResults(parseInt(e.target.value))} style={{flex:1,background:"linear-gradient(to right, var(--gold) 0%, var(--gold) "+rangePercent+"%, var(--border) "+rangePercent+"%, var(--border) 100%)"}}/><span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)"}}>10</span></div></div>
+                </div>
+              </div>
+
+              <div className="stagger-5">
+                <button onClick={handleSubmit} style={{width:"100%",marginTop:"32px",padding:"16px",background:"var(--gold)",border:"none",borderRadius:"12px",color:"var(--bg-deep)",fontFamily:"var(--body)",fontSize:"15px",fontWeight:600,cursor:"pointer",transition:"all 0.2s",boxShadow:"0 4px 20px var(--gold-glow)"}}
+                  onMouseEnter={e=>{e.target.style.background="var(--amber)";e.target.style.transform="translateY(-1px)";}}
+                  onMouseLeave={e=>{e.target.style.background="var(--gold)";e.target.style.transform="translateY(0)";}}>
+                  ◎ Find Matching Journals
+                </button>
+                <p style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)",textAlign:"center",marginTop:"12px",letterSpacing:"0.3px"}}>Advisory tool · Results require independent verification</p>
+              </div>
+            </div>)}
+
+            {/* LOADING */}
+            {view==="loading"&&(
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:400,gap:"32px"}}>
+                <div style={{width:56,height:56,borderRadius:"50%",border:"3px solid var(--border)",borderTopColor:"var(--gold)",animation:"spin 0.9s linear infinite"}}/>
+                <div style={{textAlign:"center"}}>
+                  <div style={{fontFamily:"var(--display)",fontSize:"20px",color:"var(--text)",marginBottom:"16px"}}>Analyzing your manuscript</div>
+                  {["Embedding abstract","Searching journal database","Filtering by constraints","Ranking & generating explanations"].map((phase,i)=>(
+                    <div key={i} style={{fontFamily:"var(--body)",fontSize:"13px",color:loadPhase>i?"var(--green)":loadPhase===i?"var(--gold)":"var(--text-dim)",display:"flex",alignItems:"center",gap:"10px",justifyContent:"center",marginBottom:"8px",transition:"color 0.3s"}}>
+                      <span style={{fontFamily:"var(--mono)",fontSize:"11px",width:"14px",textAlign:"center"}}>{loadPhase>i?"✓":loadPhase===i?"›":"·"}</span>{phase}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* RESULTS */}
+            {view==="results"&&results&&(<div>
+              {results.timing&&(
+                <div style={{display:"flex",gap:"16px",marginBottom:"20px",fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)",flexWrap:"wrap"}}>
+                  {results.timing.embed_ms!=null&&<span>embed {results.timing.embed_ms}ms</span>}
+                  {results.timing.search_ms!=null&&<span>search {results.timing.search_ms}ms</span>}
+                  {results.timing.filter_ms!=null&&<span>filter {results.timing.filter_ms}ms</span>}
+                  {results.timing.rerank_ms!=null&&<span>rerank {results.timing.rerank_ms}ms</span>}
+                  <span style={{marginLeft:"auto"}}>{results.candidates_searched} → {results.candidates_after_filter} → {results.recommendations?results.recommendations.length:0}</span>
+                </div>
+              )}
+              {results.constraints_relaxed&&<div style={{background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:"10px",padding:"12px 16px",marginBottom:"18px",fontFamily:"var(--body)",fontSize:"13px",color:"var(--yellow)",lineHeight:1.6}}><strong>Filters relaxed:</strong> No journals matched all constraints. Showing best matches without filters.</div>}
+              {results.analysis_summary&&(
+                <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:"12px",padding:"20px 24px",marginBottom:"24px",fontFamily:"var(--body)",fontSize:"14px",lineHeight:1.75,color:"var(--text-mid)"}}>
+                  <span style={{fontFamily:"var(--mono)",fontSize:"10px",fontWeight:600,color:"var(--gold-dim)",letterSpacing:"0.5px"}}>ANALYSIS · </span>{results.analysis_summary}
+                </div>
+              )}
+              {results.recommendations&&results.recommendations.map((rec,idx)=><JournalCard key={idx} rec={rec} index={idx} fb={feedback[rec.rank]} onFb={type=>sendFeedback(rec,type)}/>)}
+              {(!results.recommendations||results.recommendations.length===0)&&<div style={{textAlign:"center",padding:"60px 24px",fontFamily:"var(--body)",fontSize:"15px",color:"var(--text-muted)"}}>No journals matched your constraints. Try relaxing some filters.</div>}
+
+              {/* Download Report */}
+              {results.recommendations&&results.recommendations.length>0&&(
+                <div style={{textAlign:"center",marginTop:"24px",marginBottom:"8px"}}>
+                  <button onClick={handleDownload} disabled={downloading} style={{
+                    background:"transparent",border:"1.5px solid var(--gold)",borderRadius:"10px",
+                    padding:"12px 28px",cursor:downloading?"wait":"pointer",
+                    fontFamily:"var(--body)",fontSize:"14px",fontWeight:600,color:"var(--gold)",
+                    transition:"all 0.2s",opacity:downloading?0.6:1,
+                    display:"inline-flex",alignItems:"center",gap:"8px",
+                  }}
+                  onMouseEnter={e=>{if(!downloading){e.target.style.background="var(--gold-soft)";e.target.style.transform="translateY(-1px)";}}}
+                  onMouseLeave={e=>{e.target.style.background="transparent";e.target.style.transform="translateY(0)";}}>
+                    <span style={{fontSize:"16px"}}>{downloading?"⏳":"📄"}</span>
+                    {downloading?"Generating report...":"Download Report (.docx)"}
+                  </button>
+                </div>
+              )}
+
+              <div style={{marginTop:"28px",padding:"14px 18px",background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:"10px",fontFamily:"var(--body)",fontSize:"12px",color:"var(--yellow)",lineHeight:1.7}}><strong>Disclaimer:</strong> Recommendations are AI-generated and should be verified. Always confirm scope, APC, and submission guidelines with the journal directly.</div>
+            </div>)}
+          </div>
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+  </script>
+</body>
+</html>

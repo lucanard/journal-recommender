@@ -1,0 +1,89 @@
+2026-03-06 11:20:09,103 [INFO] ============================================================
+2026-03-06 11:20:09,103 [INFO] OpenAlex Enrichment Pipeline Starting
+2026-03-06 11:20:09,104 [INFO] ============================================================
+2026-03-06 11:20:09,356 [INFO] Loaded 9337 journals from enriched_doaj.json
+2026-03-06 11:20:09,367 [INFO] Journals to process: 9336
+2026-03-06 11:20:09,367 [INFO] Estimated time: 23 minutes
+2026-03-06 12:01:09,861 [INFO] ============================================================
+2026-03-06 12:01:09,861 [INFO] OpenAlex Enrichment Pipeline Starting
+2026-03-06 12:01:09,861 [INFO] ============================================================
+2026-03-06 12:01:10,005 [INFO] Loaded 9337 journals from enriched_doaj.json
+2026-03-06 12:01:10,021 [INFO] Journals to process: 9336
+2026-03-06 12:01:10,021 [INFO] Estimated time: 23 minutes
+2026-03-06 12:01:48,373 [INFO] ============================================================
+2026-03-06 12:01:48,373 [INFO] OpenAlex Enrichment Pipeline Starting
+2026-03-06 12:01:48,373 [INFO] ============================================================
+2026-03-06 12:01:48,516 [INFO] Loaded 9337 journals from enriched_doaj.json
+2026-03-06 12:01:48,532 [INFO] Journals to process: 9336
+2026-03-06 12:01:48,532 [INFO] Estimated time: 23 minutes
+2026-03-06 12:07:25,738 [INFO] ============================================================
+2026-03-06 12:07:25,738 [INFO] OpenAlex Enrichment Pipeline Starting
+2026-03-06 12:07:25,738 [INFO] ============================================================
+2026-03-06 12:07:25,738 [WARNING] No contact email set! Using slow pool (1 req/s).
+2026-03-06 12:07:25,738 [WARNING] Set CONTACT_EMAIL in the script for 10x faster processing.
+2026-03-06 12:07:25,898 [INFO] Loaded 9337 journals from enriched_doaj.json
+2026-03-06 12:07:25,898 [INFO] Journals to process: 9336
+2026-03-06 12:07:25,898 [INFO] Estimated time: 171 minutes
+2026-03-06 12:08:29,744 [INFO] ============================================================
+2026-03-06 12:08:29,744 [INFO] OpenAlex Enrichment Pipeline Starting
+2026-03-06 12:08:29,744 [INFO] ============================================================
+2026-03-06 12:08:29,888 [INFO] Loaded 9337 journals from enriched_doaj.json
+2026-03-06 12:08:29,904 [INFO] Journals to process: 9336
+2026-03-06 12:08:29,904 [INFO] Estimated time: 23 minutes
+2026-03-06 12:11:10,311 [INFO] --- Progress saved: 199 found, 1 not found ---
+2026-03-06 12:13:51,895 [INFO] --- Progress saved: 399 found, 1 not found ---
+2026-03-06 12:16:38,340 [INFO] --- Progress saved: 597 found, 3 not found ---
+2026-03-06 12:19:25,033 [INFO] --- Progress saved: 797 found, 3 not found ---
+2026-03-06 12:22:06,384 [INFO] --- Progress saved: 997 found, 3 not found ---
+2026-03-06 12:24:52,496 [INFO] --- Progress saved: 1197 found, 3 not found ---
+2026-03-06 12:27:14,569 [INFO] --- Progress saved: 1397 found, 3 not found ---
+2026-03-06 12:29:40,036 [INFO] --- Progress saved: 1596 found, 4 not found ---
+2026-03-06 12:32:37,464 [INFO] --- Progress saved: 1796 found, 4 not found ---
+2026-03-06 12:35:36,005 [INFO] --- Progress saved: 1996 found, 4 not found ---
+2026-03-06 12:38:47,374 [INFO] --- Progress saved: 2196 found, 4 not found ---
+2026-03-06 12:41:40,237 [INFO] --- Progress saved: 2396 found, 4 not found ---
+2026-03-06 12:44:35,398 [INFO] --- Progress saved: 2596 found, 4 not found ---
+2026-03-06 12:47:25,265 [INFO] --- Progress saved: 2796 found, 4 not found ---
+2026-03-06 12:50:12,338 [INFO] --- Progress saved: 2996 found, 4 not found ---
+2026-03-06 12:53:03,204 [INFO] --- Progress saved: 3196 found, 4 not found ---
+2026-03-06 12:55:30,394 [INFO] --- Progress saved: 3396 found, 4 not found ---
+2026-03-06 12:57:59,625 [INFO] --- Progress saved: 3596 found, 4 not found ---
+2026-03-06 13:00:36,207 [INFO] --- Progress saved: 3796 found, 4 not found ---
+2026-03-06 13:03:11,145 [INFO] --- Progress saved: 3996 found, 4 not found ---
+2026-03-06 13:05:41,533 [INFO] --- Progress saved: 4196 found, 4 not found ---
+2026-03-06 13:08:13,415 [INFO] --- Progress saved: 4396 found, 4 not found ---
+2026-03-06 13:10:45,809 [INFO] --- Progress saved: 4596 found, 4 not found ---
+2026-03-06 13:13:40,971 [INFO] --- Progress saved: 4796 found, 4 not found ---
+2026-03-06 13:16:36,344 [INFO] --- Progress saved: 4995 found, 5 not found ---
+2026-03-06 13:19:21,458 [INFO] --- Progress saved: 5194 found, 6 not found ---
+2026-03-06 13:22:05,882 [INFO] --- Progress saved: 5366 found, 34 not found ---
+2026-03-06 13:24:47,251 [INFO] --- Progress saved: 5530 found, 70 not found ---
+2026-03-06 13:27:26,307 [INFO] --- Progress saved: 5692 found, 108 not found ---
+2026-03-06 13:30:06,705 [INFO] --- Progress saved: 5863 found, 137 not found ---
+2026-03-06 13:32:46,553 [INFO] --- Progress saved: 6040 found, 160 not found ---
+2026-03-06 13:35:30,269 [INFO] --- Progress saved: 6217 found, 183 not found ---
+2026-03-06 13:38:11,197 [INFO] --- Progress saved: 6384 found, 216 not found ---
+2026-03-06 13:40:46,710 [INFO] --- Progress saved: 6548 found, 252 not found ---
+2026-03-06 13:43:17,670 [INFO] --- Progress saved: 6725 found, 275 not found ---
+2026-03-06 13:45:58,545 [INFO] --- Progress saved: 6895 found, 305 not found ---
+2026-03-06 13:48:38,515 [INFO] --- Progress saved: 7063 found, 337 not found ---
+2026-03-06 13:51:18,387 [INFO] --- Progress saved: 7233 found, 367 not found ---
+2026-03-06 13:53:55,845 [INFO] --- Progress saved: 7393 found, 407 not found ---
+2026-03-06 13:56:16,769 [INFO] --- Progress saved: 7551 found, 449 not found ---
+2026-03-06 13:58:58,142 [INFO] --- Progress saved: 7714 found, 486 not found ---
+2026-03-06 14:01:36,588 [INFO] --- Progress saved: 7877 found, 523 not found ---
+2026-03-06 14:04:11,576 [INFO] --- Progress saved: 8033 found, 567 not found ---
+2026-03-06 14:06:47,155 [INFO] --- Progress saved: 8199 found, 601 not found ---
+2026-03-06 14:09:21,247 [INFO] --- Progress saved: 8373 found, 627 not found ---
+2026-03-06 14:11:46,108 [INFO] --- Progress saved: 8535 found, 665 not found ---
+2026-03-06 14:13:29,270 [INFO] ============================================================
+2026-03-06 14:13:29,270 [INFO] OPENALEX ENRICHMENT COMPLETE
+2026-03-06 14:13:29,270 [INFO]   Found in OpenAlex:   8637
+2026-03-06 14:13:29,270 [INFO]   Not found:           699
+2026-03-06 14:13:29,270 [INFO]   ---
+2026-03-06 14:13:29,270 [INFO]   Journals with scope:     8591/9337
+2026-03-06 14:13:29,273 [INFO]   Journals with subjects:  9288/9337
+2026-03-06 14:13:29,273 [INFO]   Journals with impact:    8637/9337
+2026-03-06 14:13:29,273 [INFO]   Journals with APC info:  6942/9337
+2026-03-06 14:13:29,273 [INFO]   Output saved to:         enriched_openalex.json
+2026-03-06 14:13:29,273 [INFO] ============================================================

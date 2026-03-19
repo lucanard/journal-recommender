@@ -1,0 +1,55 @@
+
+============================================================
+ JOURNAL DATABASE ENRICHMENT REPORT
+ Generated: 2026-03-07 14:08:24
+============================================================
+
+OVERVIEW
+  Total active journals:  9,246
+  Duplicates removed:     0
+
+INDEXING COVERAGE
+  PubMed/MEDLINE:         5,027 (54.4%)
+  DOAJ (Open Access):     4,104 (44.4%)
+  Both:                   97 (1.0%)
+
+DATA COMPLETENESS
+  Has aims & scope:       8,508 (92.0%)
+  Has subject categories: 9,199 (99.5%)
+  Has publisher:          8,539 (92.4%)
+  Has APC info:           6,879 (74.4%)
+  Has impact proxy:       8,554 (92.5%)
+  Has homepage URL:       5,773 (62.4%)
+
+COMPLETENESS DISTRIBUTION
+  High (70-100%):         8,509 (92.0%)
+  Medium (40-69%):        713 (7.7%)
+  Low (0-39%):            24 (0.3%)
+
+ENRICHMENT SOURCES
+  DOAJ API:               4,961 (53.7%)
+  OpenAlex:               8,554 (92.5%)
+  CrossRef:               8,278 (89.5%)
+
+IMPACT PROXY DISTRIBUTION
+  Q1 (High):              501 (5.4%)
+  Q1-Q2:                  1,833 (19.8%)
+  Q2-Q3:                  2,010 (21.7%)
+  Q3-Q4:                  1,829 (19.8%)
+  Q4:                     2,381 (25.8%)
+  Unknown:                692 (7.5%)
+
+FILES PRODUCED
+  journal_database_final.json           — Production database (JSON)
+  journal_embeddings_input.jsonl          — Embedding input (JSONL, one record per line)
+  journal_database_enriched.xlsx           — Excel export (color-coded by completeness)
+  enrichment_report.txt         — This report
+
+NEXT STEPS FOR PRODUCTION
+  1. Generate embeddings from journal_embeddings_input.jsonl using an embedding model
+  2. Store embeddings in a vector database (Pinecone, Weaviate, pgvector, etc.)
+  3. Wire up the recommendation API:
+     a. Embed user abstract → vector search → top N candidates
+     b. Filter by constraints (indexing, OA, APC, article type)
+     c. Re-rank with LLM for scope fit explanations
+============================================================

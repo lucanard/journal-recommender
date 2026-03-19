@@ -1,0 +1,202 @@
+2026-03-06 14:13:29,661 [INFO] ============================================================
+2026-03-06 14:13:29,661 [INFO] CrossRef Enrichment Pipeline Starting
+2026-03-06 14:13:29,661 [INFO] ============================================================
+2026-03-06 14:13:30,219 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-06 14:13:30,267 [INFO] Journals to process: 9336
+2026-03-06 14:16:04,606 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 15:47:59,921 [INFO] ============================================================
+2026-03-06 15:47:59,921 [INFO] CrossRef Enrichment Pipeline Starting
+2026-03-06 15:47:59,939 [INFO] ============================================================
+2026-03-06 15:48:00,443 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-06 15:48:00,491 [INFO] Journals to process: 9336
+2026-03-06 15:49:05,135 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-06 15:49:45,270 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 15:50:15,011 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 15:50:37,101 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 15:53:01,747 [INFO] [200/9336] 116 found, 84 not found
+2026-03-06 15:54:03,104 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 15:56:11,427 [INFO] [400/9336] 275 found, 125 not found
+2026-03-06 15:57:33,096 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 15:58:50,849 [WARNING] Network error: <urlopen error [WinError 10054] Connessione in corso interrotta forzatamente dall'host remoto> (attempt 1)
+2026-03-06 15:59:19,843 [INFO] [600/9336] 427 found, 173 not found
+2026-03-06 16:00:29,196 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 16:02:50,707 [INFO] [800/9336] 586 found, 214 not found
+2026-03-06 16:03:12,711 [WARNING] Network error: <urlopen error [WinError 10054] Connessione in corso interrotta forzatamente dall'host remoto> (attempt 1)
+2026-03-06 16:06:31,657 [INFO] [1000/9336] 752 found, 248 not found
+2026-03-06 16:06:57,646 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-06 16:10:16,621 [INFO] [1200/9336] 911 found, 289 not found
+2026-03-06 16:11:03,652 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 16:12:19,537 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 16:12:59,259 [WARNING] Network error: <urlopen error [WinError 10054] Connessione in corso interrotta forzatamente dall'host remoto> (attempt 1)
+2026-03-06 16:13:59,531 [INFO] [1400/9336] 1072 found, 328 not found
+2026-03-06 16:36:44,843 [INFO] ============================================================
+2026-03-06 16:36:44,843 [INFO] CrossRef Enrichment Pipeline Starting
+2026-03-06 16:36:44,843 [INFO] ============================================================
+2026-03-06 16:36:45,554 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-06 16:36:45,603 [INFO] Resuming: 1400 already processed
+2026-03-06 16:36:45,668 [INFO] Journals to process: 7936
+2026-03-06 16:37:17,808 [WARNING] Network error: <urlopen error [WinError 10054] Connessione in corso interrotta forzatamente dall'host remoto> (attempt 1)
+2026-03-06 16:39:41,957 [INFO] [200/7936] 157 found, 43 not found
+2026-03-06 16:42:20,595 [INFO] [400/7936] 312 found, 88 not found
+2026-03-06 16:45:08,600 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-06 16:45:15,164 [INFO] [600/7936] 462 found, 138 not found
+2026-03-06 16:46:00,678 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 16:46:32,747 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 16:47:08,622 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 16:48:22,809 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-06 16:48:58,426 [INFO] [800/7936] 604 found, 196 not found
+2026-03-06 16:49:14,154 [WARNING] Network error: <urlopen error [WinError 10054] Connessione in corso interrotta forzatamente dall'host remoto> (attempt 1)
+2026-03-06 16:51:25,339 [INFO] [1000/7936] 757 found, 243 not found
+2026-03-06 16:54:01,484 [INFO] ============================================================
+2026-03-06 16:54:01,484 [INFO] CrossRef Enrichment Pipeline Starting
+2026-03-06 16:54:01,484 [INFO] ============================================================
+2026-03-06 16:54:02,214 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-06 16:54:02,279 [INFO] Resuming: 2400 already processed
+2026-03-06 16:54:02,343 [INFO] Journals to process: 6936
+2026-03-06 16:56:18,680 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 16:56:56,759 [INFO] [200/6936] 145 found, 55 not found
+2026-03-06 16:57:42,575 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 17:00:04,533 [INFO] [400/6936] 305 found, 95 not found
+2026-03-06 17:02:06,883 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 17:02:27,142 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-06 17:02:58,768 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 17:03:46,259 [INFO] [600/6936] 456 found, 144 not found
+2026-03-06 17:06:22,381 [INFO] [800/6936] 622 found, 178 not found
+2026-03-06 17:07:24,467 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 17:08:39,282 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-06 17:10:27,125 [INFO] [1000/6936] 821 found, 179 not found
+2026-03-06 17:13:24,241 [INFO] [1200/6936] 1017 found, 183 not found
+2026-03-06 17:16:11,851 [INFO] [1400/6936] 1212 found, 188 not found
+2026-03-06 17:17:41,587 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-06 17:19:01,635 [INFO] [1600/6936] 1409 found, 191 not found
+2026-03-06 17:19:22,891 [WARNING] Network error: <urlopen error [WinError 10054] Connessione in corso interrotta forzatamente dall'host remoto> (attempt 1)
+2026-03-06 17:19:55,099 [WARNING] Network error: <urlopen error [WinError 10054] Connessione in corso interrotta forzatamente dall'host remoto> (attempt 1)
+2026-03-06 17:22:11,742 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 17:22:16,959 [INFO] [1800/6936] 1604 found, 196 not found
+2026-03-06 17:24:13,837 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 17:25:05,851 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-06 17:26:18,695 [INFO] [2000/6936] 1798 found, 202 not found
+2026-03-06 17:27:21,089 [WARNING] Network error: <urlopen error [WinError 10054] Connessione in corso interrotta forzatamente dall'host remoto> (attempt 1)
+2026-03-06 17:29:00,597 [INFO] [2200/6936] 1988 found, 212 not found
+2026-03-06 17:29:19,873 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-06 17:30:00,054 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 17:32:24,881 [INFO] [2400/6936] 2187 found, 213 not found
+2026-03-06 17:43:07,005 [INFO] ============================================================
+2026-03-06 17:43:07,005 [INFO] CrossRef Enrichment Pipeline Starting
+2026-03-06 17:43:07,005 [INFO] ============================================================
+2026-03-06 17:43:07,530 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-06 17:43:07,592 [INFO] Resuming: 4800 already processed
+2026-03-06 17:43:07,608 [INFO] Journals to process: 4536
+2026-03-06 17:44:56,335 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 17:46:56,597 [INFO] [200/4536] 199 found, 1 not found
+2026-03-06 17:48:08,280 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 17:48:46,366 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 17:49:14,433 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-06 17:51:17,271 [INFO] [400/4536] 390 found, 10 not found
+2026-03-06 17:54:02,865 [INFO] [600/4536] 584 found, 16 not found
+2026-03-06 17:56:56,915 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 17:57:13,471 [INFO] [800/4536] 779 found, 21 not found
+2026-03-06 17:58:12,761 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 03:21:33,915 [INFO] ============================================================
+2026-03-07 03:21:33,919 [INFO] CrossRef Enrichment Pipeline Starting
+2026-03-07 03:21:33,921 [INFO] ============================================================
+2026-03-07 03:21:34,960 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-07 03:21:35,093 [INFO] Resuming: 5600 already processed
+2026-03-07 03:21:35,115 [INFO] Journals to process: 3736
+2026-03-07 03:23:09,178 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 03:23:48,997 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 03:24:34,642 [WARNING] Network error: <urlopen error [WinError 10054] Connessione in corso interrotta forzatamente dall'host remoto> (attempt 1)
+2026-03-07 03:25:36,190 [INFO] [200/3736] 197 found, 3 not found
+2026-03-07 03:28:13,370 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 03:29:12,778 [INFO] [400/3736] 391 found, 9 not found
+2026-03-07 03:30:07,589 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 03:31:15,537 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 03:33:07,474 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 03:33:33,363 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 03:33:55,328 [INFO] [600/3736] 585 found, 15 not found
+2026-03-07 03:34:39,369 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 10:07:44,765 [INFO] ============================================================
+2026-03-07 10:07:44,765 [INFO] CrossRef Enrichment Pipeline Starting
+2026-03-07 10:07:44,765 [INFO] ============================================================
+2026-03-07 10:07:45,293 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-07 10:07:45,367 [INFO] Resuming: 6200 already processed
+2026-03-07 10:07:45,367 [INFO] Journals to process: 3136
+2026-03-07 10:09:38,211 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 10:11:06,337 [INFO] [200/3136] 198 found, 2 not found
+2026-03-07 10:14:44,402 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 10:14:51,768 [INFO] [400/3136] 390 found, 10 not found
+2026-03-07 10:17:28,373 [WARNING] Network error: <urlopen error [Errno 11001] getaddrinfo failed> (attempt 1)
+2026-03-07 10:18:10,021 [INFO] [600/3136] 583 found, 17 not found
+2026-03-07 10:18:30,484 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 10:19:14,349 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 10:27:55,495 [INFO] ============================================================
+2026-03-07 10:27:55,512 [INFO] CrossRef Enrichment Pipeline Starting
+2026-03-07 10:27:55,512 [INFO] ============================================================
+2026-03-07 10:27:56,020 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-07 10:27:56,100 [INFO] Resuming: 6800 already processed
+2026-03-07 10:27:56,100 [INFO] Journals to process: 2536
+2026-03-07 10:28:32,840 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 10:28:52,927 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 10:31:06,884 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 10:31:55,036 [INFO] [200/2536] 191 found, 9 not found
+2026-03-07 10:32:34,909 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 11:20:12,024 [INFO] ============================================================
+2026-03-07 11:20:12,024 [INFO] CrossRef Enrichment Pipeline Starting
+2026-03-07 11:20:12,024 [INFO] ============================================================
+2026-03-07 11:20:12,535 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-07 11:20:12,630 [INFO] Resuming: 7000 already processed
+2026-03-07 11:20:12,630 [INFO] Journals to process: 2336
+2026-03-07 11:21:26,475 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:24:21,522 [INFO] ============================================================
+2026-03-07 11:24:21,522 [INFO] CrossRef Enrichment Pipeline Starting
+2026-03-07 11:24:21,522 [INFO] ============================================================
+2026-03-07 11:24:22,059 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-07 11:24:22,131 [INFO] Resuming: 7000 already processed
+2026-03-07 11:24:22,138 [INFO] Journals to process: 2336
+2026-03-07 11:27:09,224 [INFO] [200/2336] 196 found, 4 not found
+2026-03-07 11:27:56,095 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:28:50,521 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:29:24,459 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 11:31:01,380 [INFO] [400/2336] 381 found, 19 not found
+2026-03-07 11:32:06,476 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:33:26,632 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:33:52,006 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:34:46,679 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:35:33,396 [INFO] [600/2336] 563 found, 37 not found
+2026-03-07 11:36:17,860 [WARNING] Network error: <urlopen error [WinError 10054] Connessione in corso interrotta forzatamente dall'host remoto> (attempt 1)
+2026-03-07 11:37:10,757 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:38:04,772 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:38:52,780 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 11:39:50,709 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 11:39:56,786 [INFO] [800/2336] 748 found, 52 not found
+2026-03-07 11:40:56,788 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 11:41:30,818 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:43:54,831 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:44:23,692 [INFO] [1000/2336] 925 found, 75 not found
+2026-03-07 11:44:50,818 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:46:24,930 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 11:46:47,131 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:47:52,932 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 11:48:31,946 [INFO] [1200/2336] 1119 found, 81 not found
+2026-03-07 13:50:30,708 [INFO] ============================================================
+2026-03-07 13:50:30,708 [INFO] CrossRef Enrichment Pipeline Starting
+2026-03-07 13:50:30,708 [INFO] ============================================================
+2026-03-07 13:50:31,720 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-07 13:50:31,910 [INFO] Resuming: 8200 already processed
+2026-03-07 13:50:31,928 [INFO] Journals to process: 1136
+2026-03-07 13:53:01,190 [INFO] [200/1136] 192 found, 8 not found
+2026-03-07 13:55:30,940 [INFO] [400/1136] 384 found, 16 not found
+2026-03-07 13:58:31,448 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 13:59:05,405 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 13:59:10,434 [INFO] [600/1136] 575 found, 25 not found
+2026-03-07 14:02:11,012 [INFO] [800/1136] 764 found, 36 not found
+2026-03-07 14:03:31,586 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 14:03:51,939 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 14:05:46,692 [INFO] [1000/1136] 955 found, 45 not found
+2026-03-07 14:06:13,578 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-07 14:07:21,812 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-07 14:08:10,591 [INFO] ============================================================
+2026-03-07 14:08:10,591 [INFO] CROSSREF ENRICHMENT COMPLETE
+2026-03-07 14:08:10,591 [INFO]   Found: 1085  |  Not found: 51
+2026-03-07 14:08:10,591 [INFO]   Output: enriched_crossref.json
+2026-03-07 14:08:10,591 [INFO] ============================================================

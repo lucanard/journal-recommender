@@ -1,0 +1,216 @@
+2026-03-05 18:20:50,825 [INFO] ============================================================
+2026-03-05 18:20:50,827 [INFO] DOAJ Enrichment Pipeline Starting
+2026-03-05 18:20:50,827 [INFO] ============================================================
+2026-03-05 18:20:50,910 [INFO] Loaded 9337 journals from journal_database.json
+2026-03-05 18:20:50,910 [INFO] Journals to process: 9336
+2026-03-05 18:22:11,483 [INFO] [50/9336] — Recent advances in food, nutrition & agriculture (2772-5758) not in DOAJ
+2026-03-05 18:23:21,219 [INFO] --- Progress saved: 22 found, 78 not found, 0 errors ---
+2026-03-05 18:24:23,523 [INFO] [150/9336] — Wound management & prevention (2640-5245) not in DOAJ
+2026-03-05 18:25:31,808 [INFO] [200/9336] — Emerging topics in life sciences (2397-8562) not in DOAJ
+2026-03-05 18:25:31,826 [INFO] --- Progress saved: 59 found, 141 not found, 0 errors ---
+2026-03-05 18:26:08,284 [WARNING] Network error: <urlopen error _ssl.c:993: The handshake operation timed out> (attempt 1)
+2026-03-05 18:26:24,415 [WARNING] Network error: <urlopen error [Errno 11001] getaddrinfo failed> (attempt 2)
+2026-03-05 18:26:59,137 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-05 18:27:14,180 [WARNING] Network error: <urlopen error [WinError 10054] Connessione in corso interrotta forzatamente dall'host remoto> (attempt 2)
+2026-03-05 18:27:58,432 [INFO] [250/9336] — Cannabis and cannabinoid research (2378-8763) not in DOAJ
+2026-03-05 18:28:59,230 [INFO] [300/9336] — Biomedical physics & engineering express (2057-1976) not in DOAJ
+2026-03-05 18:28:59,246 [INFO] --- Progress saved: 98 found, 202 not found, 0 errors ---
+2026-03-05 18:30:58,888 [INFO] --- Progress saved: 139 found, 261 not found, 0 errors ---
+2026-03-05 18:32:08,045 [INFO] [450/9336] — Journal of materials chemistry. B (2050-7518) not in DOAJ
+2026-03-05 18:33:05,165 [INFO] [500/9336] — Applied neuropsychology. Child (2162-2973) not in DOAJ
+2026-03-05 18:33:05,189 [INFO] --- Progress saved: 177 found, 323 not found, 0 errors ---
+2026-03-05 18:33:55,401 [INFO] [550/9336] — Journal of the Academy of Nutrition and Dietetics (2212-2672) not in DOAJ
+2026-03-05 18:34:52,614 [INFO] [600/9336] — Cellular oncology (Dordrecht, Netherlands) (2211-3436) not in DOAJ
+2026-03-05 18:34:52,643 [INFO] --- Progress saved: 224 found, 376 not found, 0 errors ---
+2026-03-05 18:35:48,274 [INFO] [650/9336] — Theoretical biology forum (2283-7175) not in DOAJ
+2026-03-05 18:36:48,019 [INFO] [700/9336] — IEEE pulse (2154-2317) not in DOAJ
+2026-03-05 18:36:48,051 [INFO] --- Progress saved: 263 found, 437 not found, 0 errors ---
+2026-03-05 18:37:46,243 [INFO] [750/9336] — ACS applied materials & interfaces (1944-8252) not in DOAJ
+2026-03-05 18:38:44,086 [INFO] [800/9336] — Japanese journal of radiology (1867-108X) not in DOAJ
+2026-03-05 18:38:44,177 [INFO] --- Progress saved: 301 found, 499 not found, 0 errors ---
+2026-03-05 18:39:43,849 [INFO] [850/9336] — Aging (1945-4589) not in DOAJ
+2026-03-05 18:40:44,775 [INFO] [900/9336] — JACC. Cardiovascular imaging (1876-7591) not in DOAJ
+2026-03-05 18:40:44,804 [INFO] --- Progress saved: 330 found, 570 not found, 0 errors ---
+2026-03-05 18:41:43,742 [INFO] [950/9336] — Research in gerontological nursing (1938-2464) not in DOAJ
+2026-03-05 18:42:46,029 [INFO] [1000/9336] — General thoracic and cardiovascular surgery (1863-6713) not in DOAJ
+2026-03-05 18:42:46,088 [INFO] --- Progress saved: 361 found, 639 not found, 0 errors ---
+2026-03-05 18:43:47,368 [INFO] [1050/9336] — Personality and mental health (1932-863X) not in DOAJ
+2026-03-05 18:44:49,793 [INFO] [1100/9336] — CNS & neurological disorders drug targets (1996-3181) not in DOAJ
+2026-03-05 18:44:49,850 [INFO] --- Progress saved: 382 found, 718 not found, 0 errors ---
+2026-03-05 18:46:43,968 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-05 18:47:41,134 [INFO] --- Progress saved: 413 found, 787 not found, 0 errors ---
+2026-03-05 18:49:43,006 [INFO] [1250/9336] — Journal of clinical sleep medicine : JCSM : official publication of the (1550-9397) not in DOAJ
+2026-03-05 18:50:54,492 [INFO] [1300/9336] — Body image (1873-6807) not in DOAJ
+2026-03-05 18:50:54,572 [INFO] --- Progress saved: 432 found, 868 not found, 0 errors ---
+2026-03-05 18:52:57,325 [INFO] --- Progress saved: 463 found, 937 not found, 0 errors ---
+2026-03-05 18:53:58,598 [INFO] [1450/9336] — Expert review of anti-infective therapy (1744-8336) not in DOAJ
+2026-03-05 18:54:57,566 [INFO] --- Progress saved: 492 found, 1008 not found, 0 errors ---
+2026-03-05 18:55:57,135 [INFO] [1550/9336] — Dementia (London, England) (1741-2684) not in DOAJ
+2026-03-05 18:57:01,244 [INFO] --- Progress saved: 521 found, 1079 not found, 0 errors ---
+2026-03-05 18:58:06,532 [INFO] [1650/9336] — Best practice & research. Clinical rheumatology (1532-1770) not in DOAJ
+2026-03-05 18:59:00,082 [INFO] [1700/9336] — Emergency medicine journal : EMJ (1472-0213) not in DOAJ
+2026-03-05 18:59:00,166 [INFO] --- Progress saved: 559 found, 1141 not found, 0 errors ---
+2026-03-05 19:00:01,797 [INFO] [1750/9336] — Molecular cancer therapeutics (1538-8514) not in DOAJ
+2026-03-05 19:01:11,927 [INFO] [1800/9336] — BJOG : an international journal of obstetrics and gynaecology (1471-0528) not in DOAJ
+2026-03-05 19:01:11,990 [INFO] --- Progress saved: 578 found, 1222 not found, 0 errors ---
+2026-03-05 19:02:17,236 [INFO] [1850/9336] — International journal of molecular sciences (1422-0067) not in DOAJ
+2026-03-05 19:03:22,265 [INFO] [1900/9336] — Pharmacogenomics (1744-8042) not in DOAJ
+2026-03-05 19:03:22,364 [INFO] --- Progress saved: 601 found, 1299 not found, 0 errors ---
+2026-03-05 19:04:31,057 [INFO] [1950/9336] — Cultural diversity & ethnic minority psychology (1099-9809) not in DOAJ
+2026-03-05 19:05:44,936 [INFO] [2000/9336] — MMW Fortschritte der Medizin (1613-3560) not in DOAJ
+2026-03-05 19:05:45,041 [INFO] --- Progress saved: 615 found, 1385 not found, 0 errors ---
+2026-03-05 19:06:51,392 [INFO] [2050/9336] — Comparative biochemistry and physiology. Part A, Molecular & integrative (1531-4332) not in DOAJ
+2026-03-05 19:07:59,483 [INFO] [2100/9336] — Journal of toxicology and environmental health. Part A (2381-3504) not in DOAJ
+2026-03-05 19:07:59,578 [INFO] --- Progress saved: 632 found, 1468 not found, 0 errors ---
+2026-03-05 19:09:02,852 [INFO] [2150/9336] — Brain tumor pathology (1861-387X) not in DOAJ
+2026-03-05 19:10:17,313 [INFO] [2200/9336] — The journal of physical chemistry. B (1520-5207) not in DOAJ
+2026-03-05 19:10:17,397 [INFO] --- Progress saved: 650 found, 1550 not found, 0 errors ---
+2026-03-05 19:12:30,892 [INFO] [2300/9336] — Journal of intellectual & developmental disability (1469-9532) not in DOAJ
+2026-03-05 19:12:31,085 [INFO] --- Progress saved: 669 found, 1631 not found, 0 errors ---
+2026-03-05 19:13:35,530 [INFO] [2350/9336] — Xi bao yu fen zi mian yi xue za zhi = Chinese journal of cellular and (1007-8738) not in DOAJ
+2026-03-05 19:14:40,695 [INFO] --- Progress saved: 686 found, 1714 not found, 0 errors ---
+2026-03-05 19:15:50,551 [INFO] [2450/9336] — Molecular diversity (1573-501X) not in DOAJ
+2026-03-05 19:16:57,168 [INFO] [2500/9336] — Artificial life (1530-9185) not in DOAJ
+2026-03-05 19:16:57,289 [INFO] --- Progress saved: 694 found, 1806 not found, 0 errors ---
+2026-03-05 19:18:05,119 [INFO] [2550/9336] — Journal of clinical psychology in medical settings (1573-3572) not in DOAJ
+2026-03-05 19:19:14,449 [INFO] [2600/9336] — Protein and peptide letters (1875-5305) not in DOAJ
+2026-03-05 19:19:14,587 [INFO] --- Progress saved: 713 found, 1887 not found, 0 errors ---
+2026-03-05 19:20:16,665 [INFO] [2650/9336] — Experimental and clinical psychopharmacology (1936-2293) not in DOAJ
+2026-03-05 19:21:32,024 [INFO] [2700/9336] — Supportive care in cancer : official journal of the Multinational (1433-7339) not in DOAJ
+2026-03-05 19:21:32,102 [INFO] --- Progress saved: 733 found, 1967 not found, 0 errors ---
+2026-03-05 19:22:50,742 [INFO] [2750/9336] — European journal of human genetics : EJHG (1476-5438) not in DOAJ
+2026-03-05 19:24:10,289 [INFO] [2800/9336] — Nature genetics (1546-1718) not in DOAJ
+2026-03-05 19:24:10,380 [INFO] --- Progress saved: 743 found, 2057 not found, 0 errors ---
+2026-03-05 19:25:23,393 [INFO] [2850/9336] — Clinical autonomic research : official journal of the Clinical Autonomic (1619-1560) not in DOAJ
+2026-03-05 19:26:38,791 [INFO] [2900/9336] — Journal of long-term effects of medical implants (1940-4379) not in DOAJ
+2026-03-05 19:26:38,868 [INFO] --- Progress saved: 758 found, 2142 not found, 0 errors ---
+2026-03-05 19:27:55,869 [INFO] [2950/9336] — Annals of epidemiology (1873-2585) not in DOAJ
+2026-03-05 19:29:13,086 [INFO] [3000/9336] — Human gene therapy (1557-7422) not in DOAJ
+2026-03-05 19:29:13,180 [INFO] --- Progress saved: 769 found, 2231 not found, 0 errors ---
+2026-03-05 19:30:31,698 [INFO] [3050/9336] — Psychiatry research. Neuroimaging (1872-7506) not in DOAJ
+2026-03-05 19:31:50,211 [INFO] [3100/9336] — Current opinion in cell biology (1879-0410) not in DOAJ
+2026-03-05 19:31:50,305 [INFO] --- Progress saved: 777 found, 2323 not found, 0 errors ---
+2026-03-05 19:33:09,482 [INFO] [3150/9336] — Journal of zoo and wildlife medicine : official publication of the American (1042-7260) not in DOAJ
+2026-03-05 19:34:27,566 [INFO] [3200/9336] — Clinical anatomy (New York, N.Y.) (1098-2353) not in DOAJ
+2026-03-05 19:34:27,742 [INFO] --- Progress saved: 785 found, 2415 not found, 0 errors ---
+2026-03-05 19:35:46,168 [INFO] [3250/9336] — Molecular carcinogenesis (1098-2744) not in DOAJ
+2026-03-05 19:37:09,836 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-05 19:37:38,031 [INFO] [3300/9336] — Cleveland Clinic journal of medicine (1939-2869) not in DOAJ
+2026-03-05 19:37:38,180 [INFO] --- Progress saved: 794 found, 2506 not found, 0 errors ---
+2026-03-05 19:38:58,029 [INFO] [3350/9336] — Journal of pediatric health care : official publication of National (1532-656X) not in DOAJ
+2026-03-05 19:40:19,789 [INFO] [3400/9336] — Viral immunology (1557-8976) not in DOAJ
+2026-03-05 19:40:19,928 [INFO] --- Progress saved: 803 found, 2597 not found, 0 errors ---
+2026-03-05 19:41:39,275 [INFO] [3450/9336] — Journal of critical care (1557-8615) not in DOAJ
+2026-03-05 19:42:56,604 [INFO] --- Progress saved: 812 found, 2688 not found, 0 errors ---
+2026-03-05 19:44:14,669 [INFO] [3550/9336] — Ophthalmic plastic and reconstructive surgery (1537-2677) not in DOAJ
+2026-03-05 19:45:32,008 [INFO] [3600/9336] — Immunohematology (1930-3955) not in DOAJ
+2026-03-05 19:45:32,104 [INFO] --- Progress saved: 821 found, 2779 not found, 0 errors ---
+2026-03-05 19:46:57,660 [INFO] [3650/9336] — Biotechnology advances (1873-1899) not in DOAJ
+2026-03-05 19:48:17,443 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-05 19:48:42,387 [INFO] --- Progress saved: 830 found, 2870 not found, 0 errors ---
+2026-03-05 19:51:18,147 [INFO] [3800/9336] — European journal of radiology (1872-7727) not in DOAJ
+2026-03-05 19:51:18,254 [INFO] --- Progress saved: 842 found, 2958 not found, 0 errors ---
+2026-03-05 19:52:35,994 [INFO] [3850/9336] — West African journal of medicine (0189-160X) not in DOAJ
+2026-03-05 19:53:58,369 [INFO] [3900/9336] — Lasers in surgery and medicine (1096-9101) not in DOAJ
+2026-03-05 19:53:58,494 [INFO] --- Progress saved: 846 found, 3054 not found, 0 errors ---
+2026-03-06 08:57:55,509 [INFO] ============================================================
+2026-03-06 08:57:55,509 [INFO] DOAJ Enrichment Pipeline Starting
+2026-03-06 08:57:55,509 [INFO] ============================================================
+2026-03-06 08:57:55,588 [INFO] Loaded 9337 journals from journal_database.json
+2026-03-06 08:57:55,635 [INFO] Resuming from previous run: 3900 already processed
+2026-03-06 08:57:55,635 [INFO] Journals to process: 5436
+2026-03-06 08:59:04,403 [INFO] [50/5436] — International journal of cosmetic science (1468-2494) not in DOAJ
+2026-03-06 09:00:23,150 [INFO] [100/5436] — Western journal of nursing research (1552-8456) not in DOAJ
+2026-03-06 09:00:23,256 [INFO] --- Progress saved: 13 found, 87 not found, 0 errors ---
+2026-03-06 09:01:30,773 [INFO] [150/5436] — Journal of the Royal Society of Medicine (1758-1095) not in DOAJ
+2026-03-06 09:02:38,838 [INFO] [200/5436] — Journal of computer assisted tomography (1532-3145) not in DOAJ
+2026-03-06 09:02:38,957 [INFO] --- Progress saved: 19 found, 181 not found, 0 errors ---
+2026-03-06 09:03:45,429 [INFO] [250/5436] — General dentistry (0363-6771) not in DOAJ
+2026-03-06 09:04:54,953 [INFO] [300/5436] — European urology (1873-7560) not in DOAJ
+2026-03-06 09:04:55,049 [INFO] --- Progress saved: 28 found, 272 not found, 0 errors ---
+2026-03-06 09:06:01,070 [INFO] [350/5436] — Clinical neurology and neurosurgery (1872-6968) not in DOAJ
+2026-03-06 09:07:06,482 [INFO] [400/5436] — Clinical nephrology (0301-0430) not in DOAJ
+2026-03-06 09:07:06,592 [INFO] --- Progress saved: 35 found, 365 not found, 0 errors ---
+2026-03-06 09:08:12,850 [INFO] [450/5436] — Drug metabolism reviews (1097-9883) not in DOAJ
+2026-03-06 09:09:20,466 [INFO] [500/5436] — International journal for vitamin and nutrition research. Internationale (0300-9831) not in DOAJ
+2026-03-06 09:09:20,562 [INFO] --- Progress saved: 43 found, 457 not found, 0 errors ---
+2026-03-06 09:10:36,636 [INFO] [550/5436] — Journal of wildlife diseases (1943-3700) not in DOAJ
+2026-03-06 09:11:50,037 [INFO] [600/5436] — Accounts of chemical research (1520-4898) not in DOAJ
+2026-03-06 09:11:50,149 [INFO] --- Progress saved: 49 found, 551 not found, 0 errors ---
+2026-03-06 09:13:05,773 [INFO] [650/5436] — The Journal of general virology (1465-2099) not in DOAJ
+2026-03-06 09:14:17,333 [INFO] --- Progress saved: 58 found, 642 not found, 0 errors ---
+2026-03-06 09:15:44,960 [INFO] [750/5436] — Advances in parasitology (2163-6079) not in DOAJ
+2026-03-06 09:16:57,859 [INFO] --- Progress saved: 67 found, 733 not found, 0 errors ---
+2026-03-06 09:18:11,053 [INFO] [850/5436] — Medicine, science, and the law (2042-1818) not in DOAJ
+2026-03-06 09:19:23,061 [INFO] [900/5436] — Sudebno-meditsinskaia ekspertiza (2309-5326) not in DOAJ
+2026-03-06 09:19:23,184 [INFO] --- Progress saved: 78 found, 822 not found, 0 errors ---
+2026-03-06 09:20:35,921 [INFO] [950/5436] — Perceptual and motor skills (1558-688X) not in DOAJ
+2026-03-06 09:21:44,925 [INFO] [1000/5436] — The Ceylon medical journal (0009-0875) not in DOAJ
+2026-03-06 09:21:45,036 [INFO] --- Progress saved: 85 found, 915 not found, 0 errors ---
+2026-03-06 09:22:53,936 [INFO] [1050/5436] — Acta haematologica (1421-9662) not in DOAJ
+2026-03-06 09:24:02,125 [INFO] --- Progress saved: 99 found, 1001 not found, 0 errors ---
+2026-03-06 09:25:14,419 [INFO] [1150/5436] — Psychiatry (1943-281X) not in DOAJ
+2026-03-06 09:26:30,321 [INFO] [1200/5436] — The Journal of dairy research (1469-7629) not in DOAJ
+2026-03-06 09:26:30,417 [INFO] --- Progress saved: 111 found, 1089 not found, 0 errors ---
+2026-03-06 09:27:37,994 [INFO] [1250/5436] — The Tohoku journal of experimental medicine (1349-3329) not in DOAJ
+2026-03-06 09:28:48,172 [INFO] [1300/5436] — Zentralblatt für Chirurgie (1438-9592) not in DOAJ
+2026-03-06 09:28:48,286 [INFO] --- Progress saved: 131 found, 1169 not found, 0 errors ---
+2026-03-06 09:30:40,674 [INFO] --- Progress saved: 190 found, 1210 not found, 0 errors ---
+2026-03-06 09:32:11,240 [INFO] --- Progress saved: 290 found, 1210 not found, 0 errors ---
+2026-03-06 09:33:12,554 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 09:33:57,463 [INFO] --- Progress saved: 390 found, 1210 not found, 0 errors ---
+2026-03-06 09:35:22,567 [INFO] --- Progress saved: 490 found, 1210 not found, 0 errors ---
+2026-03-06 09:36:49,676 [INFO] --- Progress saved: 590 found, 1210 not found, 0 errors ---
+2026-03-06 09:38:16,688 [INFO] --- Progress saved: 690 found, 1210 not found, 0 errors ---
+2026-03-06 09:39:43,233 [INFO] --- Progress saved: 789 found, 1211 not found, 0 errors ---
+2026-03-06 09:41:09,502 [INFO] --- Progress saved: 888 found, 1212 not found, 0 errors ---
+2026-03-06 10:26:49,299 [INFO] ============================================================
+2026-03-06 10:26:49,299 [INFO] DOAJ Enrichment Pipeline Starting
+2026-03-06 10:26:49,299 [INFO] ============================================================
+2026-03-06 10:26:49,363 [INFO] Loaded 9337 journals from journal_database.json
+2026-03-06 10:26:49,427 [INFO] Resuming from previous run: 6000 already processed
+2026-03-06 10:26:49,427 [INFO] Journals to process: 3336
+2026-03-06 10:28:25,404 [INFO] --- Progress saved: 100 found, 0 not found, 0 errors ---
+2026-03-06 10:29:54,130 [INFO] --- Progress saved: 200 found, 0 not found, 0 errors ---
+2026-03-06 10:31:07,729 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 10:32:03,421 [INFO] --- Progress saved: 300 found, 0 not found, 0 errors ---
+2026-03-06 10:33:40,595 [INFO] --- Progress saved: 398 found, 2 not found, 0 errors ---
+2026-03-06 10:35:27,331 [INFO] --- Progress saved: 497 found, 3 not found, 0 errors ---
+2026-03-06 10:37:06,815 [INFO] --- Progress saved: 597 found, 3 not found, 0 errors ---
+2026-03-06 10:38:40,231 [INFO] --- Progress saved: 697 found, 3 not found, 0 errors ---
+2026-03-06 10:40:18,159 [INFO] --- Progress saved: 796 found, 4 not found, 0 errors ---
+2026-03-06 10:41:52,143 [INFO] --- Progress saved: 896 found, 4 not found, 0 errors ---
+2026-03-06 10:43:29,547 [INFO] --- Progress saved: 994 found, 6 not found, 0 errors ---
+2026-03-06 10:45:02,246 [INFO] --- Progress saved: 1093 found, 7 not found, 0 errors ---
+2026-03-06 10:46:14,264 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 10:46:59,104 [INFO] --- Progress saved: 1191 found, 9 not found, 0 errors ---
+2026-03-06 10:48:33,596 [INFO] --- Progress saved: 1289 found, 11 not found, 0 errors ---
+2026-03-06 10:50:12,448 [INFO] --- Progress saved: 1388 found, 12 not found, 0 errors ---
+2026-03-06 10:51:49,436 [INFO] --- Progress saved: 1487 found, 13 not found, 0 errors ---
+2026-03-06 10:53:28,934 [INFO] --- Progress saved: 1586 found, 14 not found, 0 errors ---
+2026-03-06 10:55:08,784 [INFO] --- Progress saved: 1684 found, 16 not found, 0 errors ---
+2026-03-06 10:56:42,151 [INFO] --- Progress saved: 1783 found, 17 not found, 0 errors ---
+2026-03-06 10:58:05,962 [INFO] --- Progress saved: 1880 found, 20 not found, 0 errors ---
+2026-03-06 10:59:29,588 [INFO] --- Progress saved: 1979 found, 21 not found, 0 errors ---
+2026-03-06 11:00:54,068 [INFO] --- Progress saved: 2079 found, 21 not found, 0 errors ---
+2026-03-06 11:02:19,372 [INFO] --- Progress saved: 2178 found, 22 not found, 0 errors ---
+2026-03-06 11:03:47,493 [INFO] --- Progress saved: 2277 found, 23 not found, 0 errors ---
+2026-03-06 11:05:12,658 [INFO] --- Progress saved: 2375 found, 25 not found, 0 errors ---
+2026-03-06 11:07:00,478 [INFO] --- Progress saved: 2472 found, 28 not found, 0 errors ---
+2026-03-06 11:08:10,095 [WARNING] Network error: The read operation timed out (attempt 1)
+2026-03-06 11:08:30,230 [WARNING] Network error: The read operation timed out (attempt 2)
+2026-03-06 11:09:04,290 [INFO] --- Progress saved: 2571 found, 29 not found, 0 errors ---
+2026-03-06 11:10:42,836 [INFO] --- Progress saved: 2671 found, 29 not found, 0 errors ---
+2026-03-06 11:12:18,302 [INFO] --- Progress saved: 2768 found, 32 not found, 0 errors ---
+2026-03-06 11:13:45,374 [INFO] --- Progress saved: 2866 found, 34 not found, 0 errors ---
+2026-03-06 11:15:14,244 [INFO] --- Progress saved: 2964 found, 36 not found, 0 errors ---
+2026-03-06 11:16:42,031 [INFO] --- Progress saved: 3058 found, 42 not found, 0 errors ---
+2026-03-06 11:18:09,099 [INFO] --- Progress saved: 3155 found, 45 not found, 0 errors ---
+2026-03-06 11:19:34,807 [INFO] --- Progress saved: 3253 found, 47 not found, 0 errors ---
+2026-03-06 11:20:08,649 [INFO] ============================================================
+2026-03-06 11:20:08,651 [INFO] DOAJ ENRICHMENT COMPLETE
+2026-03-06 11:20:08,651 [INFO]   Found in DOAJ:     3288
+2026-03-06 11:20:08,651 [INFO]   Not in DOAJ:       48
+2026-03-06 11:20:08,651 [INFO]   Errors:            0
+2026-03-06 11:20:08,652 [INFO]   Output saved to:   enriched_doaj.json
+2026-03-06 11:20:08,652 [INFO] ============================================================

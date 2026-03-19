@@ -1,0 +1,8 @@
+{
+  "provider": "gemini",
+  "model": "gemini-embedding-001",
+  "dimensions": 768,
+  "num_embeddings": 9246,
+  "input_file": "journal_embeddings_input.jsonl",
+  "generated_at": "2026-03-19 13:28:07"
+}
