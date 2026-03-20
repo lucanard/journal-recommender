@@ -18,6 +18,7 @@ from datetime import datetime
 # ─── Config ──────────────────────────────────────────────────────────────────
 # Input: use the most enriched version available
 POSSIBLE_INPUTS = [
+    "enriched_scope.json",
     "enriched_crossref.json",
     "enriched_openalex.json",
     "enriched_doaj.json",
@@ -46,16 +47,18 @@ def save_json(data, path):
 def compute_completeness(journal):
     """Score 0-100 for how complete a journal record is."""
     fields = {
-        "title": 10,
-        "publisher": 10,
-        "aims_scope": 25,       # Most critical for matching
-        "subject_categories": 20,
+        "title": 8,
+        "publisher": 8,
+        "aims_scope": 20,            # Critical for matching
+        "subject_categories": 12,
+        "editorial_keywords": 15,    # From deep scope enrichment
         "oa_model": 5,
         "apc_display": 5,
-        "impact_proxy": 10,
-        "indexed_pubmed": 5,
-        "in_doaj": 5,
-        "homepage": 5,
+        "impact_proxy": 8,
+        "indexed_pubmed": 4,
+        "in_doaj": 4,
+        "homepage": 4,
+        "research_focus_subfields": 7,
     }
     score = 0
     for field, weight in fields.items():
@@ -80,6 +83,11 @@ def build_embedding_text(journal):
     if scope:
         parts.append(f"Scope: {scope}")
     
+    # Extended scope from deep enrichment
+    scope_ext = journal.get("aims_scope_extended", "")
+    if scope_ext:
+        parts.append(f"Editorial focus: {scope_ext}")
+    
     subjects = journal.get("subject_categories", [])
     if subjects:
         parts.append(f"Subjects: {', '.join(subjects[:15])}")
@@ -87,6 +95,16 @@ def build_embedding_text(journal):
     topics = journal.get("top_topics", [])
     if topics:
         parts.append(f"Topics: {', '.join(topics[:10])}")
+    
+    # Editorial keywords from recent works analysis
+    ed_keywords = journal.get("editorial_keywords", [])
+    if ed_keywords:
+        parts.append(f"Editorial keywords: {', '.join(ed_keywords[:15])}")
+    
+    # Research focus subfields
+    focus_subfields = journal.get("research_focus_subfields", [])
+    if focus_subfields:
+        parts.append(f"Research focus: {', '.join(focus_subfields[:8])}")
     
     keywords = journal.get("keywords", [])
     if keywords:

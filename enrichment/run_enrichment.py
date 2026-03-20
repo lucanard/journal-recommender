@@ -41,6 +41,15 @@ STEPS = [
     },
     {
         "num": 3,
+        "name": "Deep Scope Enrichment",
+        "script": "02b_enrich_scope.py",
+        "output": "enriched_scope.json",
+        "progress": "scope_progress.json",
+        "description": "Fetches recent works to build editorial keyword profiles and richer scope",
+        "est_time": "~40 min with polite pool",
+    },
+    {
+        "num": 4,
         "name": "CrossRef Enrichment",
         "script": "03_enrich_crossref.py",
         "output": "enriched_crossref.json",
@@ -49,7 +58,7 @@ STEPS = [
         "est_time": "~15 min with polite pool",
     },
     {
-        "num": 4,
+        "num": 5,
         "name": "Merge & Export",
         "script": "04_merge_and_export.py",
         "output": "journal_database_final.json",
@@ -113,11 +122,13 @@ def reset_progress():
     progress_files = [
         "doaj_progress.json",
         "openalex_progress.json",
+        "scope_progress.json",
         "crossref_progress.json",
     ]
     output_files = [
         "enriched_doaj.json",
         "enriched_openalex.json",
+        "enriched_scope.json",
         "enriched_crossref.json",
         "journal_database_final.json",
         "journal_embeddings_input.jsonl",

@@ -448,8 +448,12 @@ async def tailor_manuscript(raw_request: Request):
         "title": journal.get("title", ""),
         "publisher": journal.get("publisher", ""),
         "aims_scope": (journal.get("aims_scope", "") or "")[:2000],
+        "aims_scope_extended": (journal.get("aims_scope_extended", "") or "")[:1000],
         "subjects": journal.get("subject_categories", [])[:10],
         "topics": journal.get("top_topics", [])[:10],
+        "editorial_keywords": journal.get("editorial_keywords", [])[:20],
+        "research_focus_subfields": journal.get("research_focus_subfields", [])[:8],
+        "article_type_distribution": journal.get("article_type_distribution", {}),
         "oa_model": journal.get("oa_model", ""),
         "impact_proxy": journal.get("impact_proxy", ""),
         "impact_factor": journal.get("two_yr_mean_citedness", "Unknown"),
@@ -469,7 +473,7 @@ async def tailor_manuscript(raw_request: Request):
 
     system_prompt = """You are an expert academic publishing advisor. A researcher has selected a target journal and wants to know how to tailor their manuscript for the best chance of acceptance.
 
-Analyze the manuscript content against the journal's aims, scope, audience, and subject areas. Provide actionable, specific guidance.
+Analyze the manuscript content against the journal's aims, scope, audience, subject areas, and — critically — the journal's EDITORIAL KEYWORDS. Editorial keywords are extracted from the journal's recent publications and show exactly what topics the journal is actively publishing. Use them to give specific, actionable advice.
 
 Respond ONLY with valid JSON (no markdown, no backticks):
 {
@@ -526,7 +530,7 @@ Article type: {request.article_type}
 TARGET JOURNAL:
 {json.dumps(journal_profile, indent=2)}
 
-Provide specific, actionable tailoring advice for this exact manuscript-journal combination. Reference the journal's actual scope and subjects. Don't give generic advice — every suggestion should be specific to THIS journal."""
+Provide specific, actionable tailoring advice for this exact manuscript-journal combination. Reference the journal's actual scope, subjects, and editorial keywords. The editorial_keywords field shows what the journal actually publishes based on analysis of recent articles — use these to guide terminology, framing, and emphasis. Don't give generic advice — every suggestion should be specific to THIS journal."""
 
     try:
         import time as _time

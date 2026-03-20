@@ -24,7 +24,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 
 # ─── Config ──────────────────────────────────────────────────────────────────
-INPUT_FILE = "enriched_openalex.json"  # Output from step 2
+INPUT_FILE = "enriched_scope.json"  # Output from step 3 (or fallback to earlier files)
 OUTPUT_FILE = "enriched_crossref.json"
 PROGRESS_FILE = "crossref_progress.json"
 LOG_FILE = "crossref_enrichment.log"
@@ -140,7 +140,7 @@ def main():
     
     # Find input
     actual_input = INPUT_FILE
-    for fallback in [INPUT_FILE, "enriched_openalex.json", "enriched_doaj.json", "journal_database.json"]:
+    for fallback in [INPUT_FILE, "enriched_scope.json", "enriched_openalex.json", "enriched_doaj.json", "journal_database.json"]:
         if os.path.exists(fallback):
             actual_input = fallback
             break

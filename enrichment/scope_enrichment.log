@@ -1,0 +1,110 @@
+2026-03-20 02:12:09,270 [INFO] ============================================================
+2026-03-20 02:12:09,271 [INFO] DEEP SCOPE ENRICHMENT — OpenAlex Recent Works
+2026-03-20 02:12:09,271 [INFO] ============================================================
+2026-03-20 02:12:09,272 [WARNING] No contact email set! Using slow pool (1 req/s).
+2026-03-20 02:12:09,272 [WARNING] Set CONTACT_EMAIL for 10x faster processing.
+2026-03-20 02:12:09,831 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-20 02:12:09,838 [INFO] Journals to process: 8637 (skipped 700 without OpenAlex ID)
+2026-03-20 02:12:09,841 [INFO] Estimated time: 238 minutes
+2026-03-20 02:13:21,387 [INFO] ============================================================
+2026-03-20 02:13:21,387 [INFO] DEEP SCOPE ENRICHMENT — OpenAlex Recent Works
+2026-03-20 02:13:21,387 [INFO] ============================================================
+2026-03-20 02:13:21,940 [INFO] Loaded 9337 journals from enriched_openalex.json
+2026-03-20 02:13:21,948 [INFO] Journals to process: 8637 (skipped 700 without OpenAlex ID)
+2026-03-20 02:13:21,949 [INFO] Estimated time: 32 minutes
+2026-03-20 02:15:13,623 [INFO] --- Progress saved: 99 enriched, 1 empty ---
+2026-03-20 02:17:03,748 [INFO] --- Progress saved: 198 enriched, 2 empty ---
+2026-03-20 02:18:54,766 [INFO] --- Progress saved: 298 enriched, 2 empty ---
+2026-03-20 02:20:47,352 [INFO] --- Progress saved: 398 enriched, 2 empty ---
+2026-03-20 02:22:35,235 [INFO] --- Progress saved: 498 enriched, 2 empty ---
+2026-03-20 02:24:29,792 [INFO] --- Progress saved: 598 enriched, 2 empty ---
+2026-03-20 02:26:19,283 [INFO] --- Progress saved: 698 enriched, 2 empty ---
+2026-03-20 02:28:08,004 [INFO] --- Progress saved: 798 enriched, 2 empty ---
+2026-03-20 02:30:02,246 [INFO] --- Progress saved: 897 enriched, 3 empty ---
+2026-03-20 02:31:53,860 [INFO] --- Progress saved: 996 enriched, 4 empty ---
+2026-03-20 02:33:34,375 [INFO] --- Progress saved: 1095 enriched, 5 empty ---
+2026-03-20 02:35:16,908 [INFO] --- Progress saved: 1195 enriched, 5 empty ---
+2026-03-20 02:36:56,897 [INFO] --- Progress saved: 1293 enriched, 7 empty ---
+2026-03-20 02:38:38,896 [INFO] --- Progress saved: 1393 enriched, 7 empty ---
+2026-03-20 02:40:17,492 [INFO] --- Progress saved: 1492 enriched, 8 empty ---
+2026-03-20 02:42:07,093 [INFO] --- Progress saved: 1591 enriched, 9 empty ---
+2026-03-20 02:43:47,050 [INFO] --- Progress saved: 1691 enriched, 9 empty ---
+2026-03-20 02:45:24,839 [INFO] --- Progress saved: 1791 enriched, 9 empty ---
+2026-03-20 02:47:00,450 [INFO] --- Progress saved: 1890 enriched, 10 empty ---
+2026-03-20 02:48:37,269 [INFO] --- Progress saved: 1989 enriched, 11 empty ---
+2026-03-20 02:50:13,975 [INFO] --- Progress saved: 2086 enriched, 14 empty ---
+2026-03-20 02:51:48,288 [INFO] --- Progress saved: 2186 enriched, 14 empty ---
+2026-03-20 02:53:24,136 [INFO] --- Progress saved: 2286 enriched, 14 empty ---
+2026-03-20 02:54:57,988 [INFO] --- Progress saved: 2385 enriched, 15 empty ---
+2026-03-20 02:56:42,129 [INFO] --- Progress saved: 2484 enriched, 16 empty ---
+2026-03-20 02:58:22,119 [INFO] --- Progress saved: 2584 enriched, 16 empty ---
+2026-03-20 03:00:00,138 [INFO] --- Progress saved: 2684 enriched, 16 empty ---
+2026-03-20 03:01:39,557 [INFO] --- Progress saved: 2783 enriched, 17 empty ---
+2026-03-20 03:03:20,650 [INFO] --- Progress saved: 2883 enriched, 17 empty ---
+2026-03-20 03:04:56,712 [INFO] --- Progress saved: 2981 enriched, 19 empty ---
+2026-03-20 03:06:35,308 [INFO] --- Progress saved: 3080 enriched, 20 empty ---
+2026-03-20 03:08:11,136 [INFO] --- Progress saved: 3180 enriched, 20 empty ---
+2026-03-20 03:09:44,414 [INFO] --- Progress saved: 3279 enriched, 21 empty ---
+2026-03-20 03:11:18,766 [INFO] --- Progress saved: 3379 enriched, 21 empty ---
+2026-03-20 03:12:49,035 [INFO] --- Progress saved: 3478 enriched, 22 empty ---
+2026-03-20 03:14:16,954 [INFO] --- Progress saved: 3575 enriched, 25 empty ---
+2026-03-20 03:15:44,766 [INFO] --- Progress saved: 3674 enriched, 26 empty ---
+2026-03-20 03:17:16,852 [INFO] --- Progress saved: 3772 enriched, 28 empty ---
+2026-03-20 03:18:47,395 [INFO] --- Progress saved: 3872 enriched, 28 empty ---
+2026-03-20 03:20:15,007 [INFO] --- Progress saved: 3969 enriched, 31 empty ---
+2026-03-20 03:21:47,268 [INFO] --- Progress saved: 4067 enriched, 33 empty ---
+2026-03-20 03:23:17,960 [INFO] --- Progress saved: 4167 enriched, 33 empty ---
+2026-03-20 03:24:46,714 [INFO] --- Progress saved: 4267 enriched, 33 empty ---
+2026-03-20 03:26:15,227 [INFO] --- Progress saved: 4366 enriched, 34 empty ---
+2026-03-20 03:27:43,072 [INFO] --- Progress saved: 4466 enriched, 34 empty ---
+2026-03-20 03:29:11,180 [INFO] --- Progress saved: 4566 enriched, 34 empty ---
+2026-03-20 03:30:36,818 [INFO] --- Progress saved: 4663 enriched, 37 empty ---
+2026-03-20 03:32:02,641 [INFO] --- Progress saved: 4763 enriched, 37 empty ---
+2026-03-20 03:33:30,435 [INFO] --- Progress saved: 4863 enriched, 37 empty ---
+2026-03-20 03:35:00,825 [INFO] --- Progress saved: 4963 enriched, 37 empty ---
+2026-03-20 03:36:35,730 [INFO] --- Progress saved: 5061 enriched, 39 empty ---
+2026-03-20 03:38:11,585 [INFO] --- Progress saved: 5160 enriched, 40 empty ---
+2026-03-20 03:39:39,221 [INFO] --- Progress saved: 5260 enriched, 40 empty ---
+2026-03-20 03:41:04,904 [INFO] --- Progress saved: 5360 enriched, 40 empty ---
+2026-03-20 03:42:30,853 [INFO] --- Progress saved: 5459 enriched, 41 empty ---
+2026-03-20 03:43:58,868 [INFO] --- Progress saved: 5559 enriched, 41 empty ---
+2026-03-20 03:45:26,901 [INFO] --- Progress saved: 5659 enriched, 41 empty ---
+2026-03-20 03:47:02,198 [INFO] --- Progress saved: 5759 enriched, 41 empty ---
+2026-03-20 03:48:27,734 [INFO] --- Progress saved: 5859 enriched, 41 empty ---
+2026-03-20 03:49:54,640 [INFO] --- Progress saved: 5959 enriched, 41 empty ---
+2026-03-20 03:51:20,484 [INFO] --- Progress saved: 6059 enriched, 41 empty ---
+2026-03-20 03:52:46,305 [INFO] --- Progress saved: 6159 enriched, 41 empty ---
+2026-03-20 03:54:10,369 [INFO] --- Progress saved: 6259 enriched, 41 empty ---
+2026-03-20 03:55:36,056 [INFO] --- Progress saved: 6359 enriched, 41 empty ---
+2026-03-20 03:57:02,394 [INFO] --- Progress saved: 6459 enriched, 41 empty ---
+2026-03-20 03:58:33,597 [INFO] --- Progress saved: 6559 enriched, 41 empty ---
+2026-03-20 04:00:01,077 [INFO] --- Progress saved: 6659 enriched, 41 empty ---
+2026-03-20 04:01:32,016 [INFO] --- Progress saved: 6759 enriched, 41 empty ---
+2026-03-20 04:02:59,069 [INFO] --- Progress saved: 6859 enriched, 41 empty ---
+2026-03-20 04:04:28,557 [INFO] --- Progress saved: 6959 enriched, 41 empty ---
+2026-03-20 04:05:55,959 [INFO] --- Progress saved: 7059 enriched, 41 empty ---
+2026-03-20 04:07:22,623 [INFO] --- Progress saved: 7158 enriched, 42 empty ---
+2026-03-20 04:08:49,696 [INFO] --- Progress saved: 7258 enriched, 42 empty ---
+2026-03-20 04:10:18,051 [INFO] --- Progress saved: 7357 enriched, 43 empty ---
+2026-03-20 04:12:01,287 [INFO] --- Progress saved: 7457 enriched, 43 empty ---
+2026-03-20 04:13:31,013 [INFO] --- Progress saved: 7557 enriched, 43 empty ---
+2026-03-20 04:14:59,961 [INFO] --- Progress saved: 7657 enriched, 43 empty ---
+2026-03-20 04:16:32,608 [INFO] --- Progress saved: 7757 enriched, 43 empty ---
+2026-03-20 04:18:00,520 [INFO] --- Progress saved: 7857 enriched, 43 empty ---
+2026-03-20 04:19:28,555 [INFO] --- Progress saved: 7957 enriched, 43 empty ---
+2026-03-20 04:20:55,641 [INFO] --- Progress saved: 8057 enriched, 43 empty ---
+2026-03-20 04:22:23,991 [INFO] --- Progress saved: 8157 enriched, 43 empty ---
+2026-03-20 04:23:52,877 [INFO] --- Progress saved: 8257 enriched, 43 empty ---
+2026-03-20 04:25:22,149 [INFO] --- Progress saved: 8357 enriched, 43 empty ---
+2026-03-20 04:26:51,665 [INFO] --- Progress saved: 8456 enriched, 44 empty ---
+2026-03-20 04:28:20,127 [INFO] --- Progress saved: 8555 enriched, 45 empty ---
+2026-03-20 04:28:57,663 [INFO] ============================================================
+2026-03-20 04:28:57,663 [INFO] DEEP SCOPE ENRICHMENT COMPLETE
+2026-03-20 04:28:57,663 [INFO]   Enriched with keywords:    8592
+2026-03-20 04:28:57,663 [INFO]   No works / no keywords:    45
+2026-03-20 04:28:57,663 [INFO]   ---
+2026-03-20 04:28:57,663 [INFO]   Journals with editorial keywords: 8592/9337
+2026-03-20 04:28:57,663 [INFO]   Journals with extended scope:     8591/9337
+2026-03-20 04:28:57,663 [INFO]   Journals with good scope (>50ch): 8592/9337
+2026-03-20 04:28:57,663 [INFO]   Output saved to: enriched_scope.json
+2026-03-20 04:28:57,663 [INFO] ============================================================
