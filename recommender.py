@@ -31,6 +31,7 @@ class UserConstraints:
 @dataclass
 class Recommendation:
     rank: int
+    journal_id: int
     journal_name: str
     publisher: str
     issn: str
@@ -198,7 +199,7 @@ class RecommendationEngine:
             j = r["journal"]
             idx = (["PubMed"] if j.get("indexed_pubmed") else []) + (["DOAJ"] if j.get("in_doaj") else [])
             recs.append(Recommendation(
-                rank=rank, journal_name=j.get("title", "?"), publisher=j.get("publisher", "?"),
+                rank=rank, journal_id=j.get("id", 0), journal_name=j.get("title", "?"), publisher=j.get("publisher", "?"),
                 issn=j.get("issn", j.get("electronic_issn", "")), oa_model=j.get("oa_model", "?"),
                 apc_estimate=j.get("apc_display", "?"), indexing=idx,
                 fit="High" if score > 0.6 else "Medium", score=round(score, 4),
@@ -336,6 +337,7 @@ Select the top {num_results}. For EVERY journal: state publishing model (especia
                 cj = candidates[cn - 1]["journal"] if 1 <= cn <= len(candidates) else {}
                 recs.append(Recommendation(
                     rank=rank,
+                    journal_id=cj.get("id", 0),
                     journal_name=rec.get("journal", cj.get("title", "")),
                     publisher=rec.get("publisher", cj.get("publisher", "")),
                     issn=cj.get("issn", cj.get("electronic_issn", "")),

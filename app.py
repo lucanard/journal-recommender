@@ -134,6 +134,7 @@ class RecommendRequest(BaseModel):
 
 class JournalRecommendation(BaseModel):
     rank: int
+    journal_id: int = 0
     journal_name: str
     publisher: str
     issn: str
@@ -400,6 +401,159 @@ def generate_report_endpoint(request: ReportRequest):
     except Exception as e:
         log.error(f"Report generation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Report generation failed: {str(e)}")
+
+
+class TailorRequest(BaseModel):
+    abstract: str = Field(..., min_length=50, description="The manuscript abstract")
+    keywords: str = Field("", description="Comma-separated keywords")
+    introduction_conclusion: str = Field("", description="Intro/conclusion text")
+    methods: str = Field("", description="Methods section text")
+    results_summary: str = Field("", description="Key results text")
+    article_type: str = Field("Original Research", description="Type of manuscript")
+    journal_id: int = Field(..., description="Journal ID from the database")
+    journal_name: str = Field("", description="Journal name (fallback if ID not found)")
+
+    @field_validator("abstract", "introduction_conclusion", "methods", "results_summary", "keywords", mode="before")
+    @classmethod
+    def clean_text_fields(cls, v):
+        return _clean_text(v)
+
+
+@app.post("/tailor")
+async def tailor_manuscript(raw_request: Request):
+    """Get AI suggestions on how to tailor a manuscript for a specific journal."""
+    if not engine or not engine.llm:
+        raise HTTPException(status_code=503, detail="LLM not available. Tailoring requires an LLM provider.")
+
+    body = await raw_request.body()
+    text = body.decode("utf-8")
+    fixed = re.sub(r'[\x00-\x1f\x7f]', ' ', text)
+    try:
+        data = json.loads(fixed)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=422, detail=f"Invalid JSON: {str(e)}")
+
+    try:
+        request = TailorRequest(**data)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Validation error: {str(e)}")
+
+    # Get journal data
+    journal = store.get_journal(request.journal_id)
+    if not journal:
+        raise HTTPException(status_code=404, detail=f"Journal ID {request.journal_id} not found")
+
+    # Build journal profile
+    journal_profile = {
+        "title": journal.get("title", ""),
+        "publisher": journal.get("publisher", ""),
+        "aims_scope": (journal.get("aims_scope", "") or "")[:2000],
+        "subjects": journal.get("subject_categories", [])[:10],
+        "topics": journal.get("top_topics", [])[:10],
+        "oa_model": journal.get("oa_model", ""),
+        "impact_proxy": journal.get("impact_proxy", ""),
+        "impact_factor": journal.get("two_yr_mean_citedness", "Unknown"),
+        "indexed_pubmed": journal.get("indexed_pubmed", False),
+    }
+
+    # Build manuscript context
+    manuscript = f"ABSTRACT:\n{request.abstract}"
+    if request.keywords:
+        manuscript += f"\n\nKEYWORDS: {request.keywords}"
+    if request.introduction_conclusion:
+        manuscript += f"\n\nINTRODUCTION / CONCLUSION:\n{request.introduction_conclusion[:2000]}"
+    if request.methods:
+        manuscript += f"\n\nMATERIALS & METHODS:\n{request.methods[:2000]}"
+    if request.results_summary:
+        manuscript += f"\n\nKEY RESULTS:\n{request.results_summary[:2000]}"
+
+    system_prompt = """You are an expert academic publishing advisor. A researcher has selected a target journal and wants to know how to tailor their manuscript for the best chance of acceptance.
+
+Analyze the manuscript content against the journal's aims, scope, audience, and subject areas. Provide actionable, specific guidance.
+
+Respond ONLY with valid JSON (no markdown, no backticks):
+{
+  "journal_name": "...",
+  "overall_fit_assessment": "A 2-3 sentence honest assessment of how well the manuscript fits this journal and what the main gap is, if any.",
+  "framing": {
+    "current": "How the manuscript currently frames its contribution (1-2 sentences)",
+    "suggested": "How to reframe it for this journal's audience (2-3 sentences)",
+    "opening_angle": "A suggested angle for the introduction's opening paragraph"
+  },
+  "title_suggestions": [
+    "A suggested title variation that better fits this journal's style",
+    "Another alternative title"
+  ],
+  "keywords_to_add": ["keyword1", "keyword2", "keyword3"],
+  "keywords_to_avoid": ["keyword1", "keyword2"],
+  "structure": {
+    "recommended_sections": ["Introduction", "..."],
+    "section_notes": "Any notes on section emphasis, length, or ordering for this journal",
+    "estimated_word_count": "Recommended word count range for this article type at this journal"
+  },
+  "methodology_emphasis": {
+    "highlight": ["What aspects of methods to emphasize for this journal"],
+    "downplay": ["What aspects are less relevant to this journal's audience"]
+  },
+  "results_presentation": {
+    "suggestions": ["How to present results for this journal's audience"],
+    "figures_tables": "Guidance on what types of figures/tables this journal prefers"
+  },
+  "discussion_angles": [
+    "Key point to address in the discussion for this journal's audience",
+    "Another important angle"
+  ],
+  "terminology": {
+    "use": ["Term or phrase that aligns with this journal's language"],
+    "avoid": ["Term or phrase that doesn't fit this journal's audience"]
+  },
+  "reviewer_concerns": [
+    "A likely concern a reviewer at this journal would raise",
+    "Another potential concern and how to preemptively address it"
+  ],
+  "references_strategy": "What types of references to prioritize (e.g., cite papers from this journal, emphasize certain methodologies)",
+  "cover_letter_tips": [
+    "Key point to make in the cover letter for this specific journal",
+    "Another tip"
+  ]
+}"""
+
+    user_msg = f"""MANUSCRIPT:
+{manuscript}
+
+Article type: {request.article_type}
+
+TARGET JOURNAL:
+{json.dumps(journal_profile, indent=2)}
+
+Provide specific, actionable tailoring advice for this exact manuscript-journal combination. Reference the journal's actual scope and subjects. Don't give generic advice — every suggestion should be specific to THIS journal."""
+
+    try:
+        import time as _time
+        t0 = _time.time()
+        response = engine.llm.create_message(system_prompt, user_msg)
+        elapsed_ms = int((_time.time() - t0) * 1000)
+
+        cleaned = response.strip()
+        cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
+        cleaned = re.sub(r'\s*```$', '', cleaned)
+        cleaned = cleaned.strip()
+        if not cleaned.startswith('{'):
+            match = re.search(r'\{.*\}', cleaned, re.DOTALL)
+            if match: cleaned = match.group(0)
+
+        parsed = json.loads(cleaned)
+        parsed["timing_ms"] = elapsed_ms
+        parsed["journal_id"] = request.journal_id
+        return parsed
+
+    except json.JSONDecodeError as e:
+        log.error(f"Tailor LLM response not valid JSON: {e}")
+        log.error(f"Raw response: {response[:500] if response else 'empty'}")
+        raise HTTPException(status_code=500, detail="AI response could not be parsed. Please try again.")
+    except Exception as e:
+        log.error(f"Tailoring failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Tailoring failed: {str(e)}")
 
 
 @app.get("/journals/search")
