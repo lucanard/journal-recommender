@@ -80,6 +80,50 @@ def _clean_text(v):
     return v
 
 
+def _is_meaningful_text(text):
+    """
+    Check if text looks like real scientific writing, not gibberish.
+    Returns True if the text appears meaningful.
+    """
+    if not text or len(text) < 50:
+        return False
+
+    words = text.split()
+
+    # Must have a reasonable number of words
+    if len(words) < 10:
+        return False
+
+    # Check against a basic English word set (common scientific words)
+    common_words = {
+        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did", "will", "would", "could",
+        "should", "may", "might", "shall", "can", "need", "must",
+        "in", "on", "at", "to", "for", "with", "from", "by", "of", "and",
+        "or", "but", "not", "this", "that", "these", "those", "it", "its",
+        "we", "our", "they", "their", "he", "she", "which", "who", "what",
+        "study", "research", "method", "results", "data", "analysis",
+        "patients", "cells", "model", "effect", "treatment", "group",
+        "using", "based", "between", "during", "after", "before",
+        "showed", "found", "compared", "used", "performed", "observed",
+        "significant", "clinical", "experimental", "novel", "specific",
+    }
+    lower_words = [w.lower().strip(".,;:()[]") for w in words]
+    recognized = sum(1 for w in lower_words if w in common_words)
+    ratio = recognized / len(lower_words) if lower_words else 0
+
+    # At least 15% of words should be recognizable common English words
+    if ratio < 0.15:
+        return False
+
+    # Average word length check — gibberish tends to have unusual word lengths
+    avg_len = sum(len(w) for w in lower_words) / len(lower_words)
+    if avg_len < 2 or avg_len > 15:
+        return False
+
+    return True
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Request / Response Models
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -333,6 +377,14 @@ async def recommend(raw_request: Request):
         request = RecommendRequest(**data)
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Validation error: {str(e)}")
+
+    # ─── Text quality check ───
+    abstract_text = request.abstract.strip()
+    if not _is_meaningful_text(abstract_text):
+        raise HTTPException(
+            status_code=422,
+            detail="The abstract doesn't appear to contain meaningful scientific text. Please paste a real research abstract."
+        )
 
     # Clean placeholders
     PH = {"string", ""}

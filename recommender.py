@@ -73,6 +73,19 @@ class RecommendationEngine:
         raw_results = self.store.search(query_embedding, top_k=search_k)
         timing["search_ms"] = int((time.time() - t0) * 1000)
 
+        # Step 1b: Minimum similarity filter — discard very low matches
+        MIN_SIMILARITY = 0.10  # Below this, the match is essentially random
+        if raw_results and raw_results[0]["score"] < MIN_SIMILARITY:
+            log.warning(f"Best match score {raw_results[0]['score']:.4f} below threshold {MIN_SIMILARITY}. Abstract may not be meaningful.")
+            return {
+                "recommendations": [],
+                "analysis_summary": "No meaningful matches found. The abstract may be too short, too general, or not contain recognizable scientific content. Please paste a complete research abstract.",
+                "timing": timing,
+                "candidates_searched": len(raw_results),
+                "candidates_after_filter": 0,
+                "constraints_relaxed": False,
+            }
+
         # Step 2: Constraint filter
         t0 = time.time()
         filtered, stats = self._apply_constraints(raw_results, constraints)
