@@ -93,17 +93,17 @@ class RecommendRequest(BaseModel):
     results_summary: str = Field("", description="Optional: paste key results or findings. Helps match journals that publish similar types of evidence.")
 
     # ─── Manuscript metadata ───
-    article_type: str = Field("Original Research", description="Original Research | Review Article | Case Report | Short Communication | Systematic Review | Meta-Analysis | Letter/Correspondence")
+    article_type: str = Field("Original Research", description="Original Research | Review Article | Systematic Review | Meta-Analysis | Case Report | Case Series | Short Communication / Brief Report | Letter to the Editor | Editorial | Commentary / Opinion | Perspective | Methods / Protocols | Technical Note | Book Review | Conference Paper | Data Paper / Data Article")
     discipline: str = Field("Any", description=f"Research discipline. Options: {', '.join(DISCIPLINES)}")
 
     # ─── Journal filters ───
-    indexing_required: list[str] = Field(default_factory=list, description="Required indexes: PubMed/MEDLINE, DOAJ, Scopus, Web of Science. Empty [] = no filter.")
+    indexing_required: list[str] = Field(default_factory=list, description="Required indexes. Options: Any, PubMed/MEDLINE, DOAJ, Scopus, Web of Science, Embase, PsycINFO, CINAHL, ERIC, EconLit, MathSciNet, zbMATH, Chemical Abstracts Service (CAS), Inspec, GeoRef, AGRIS, ESCI, SCImago (SJR). Empty [] = no filter. ['Any'] = any indexing.")
     oa_preference: str = Field("Any", description="Any | Open Access Only | Hybrid")
     apc_free_only: bool = Field(False, description="true = only free-to-publish journals. Hybrid OK via subscription route.")
     max_apc: float | None = Field(None, description="Max APC in USD. null = no limit.")
     min_impact_factor: float | None = Field(None, description="Minimum Impact Factor (e.g. 2.0, 5.0). null = no filter.")
     target_impact: str | None = Field(None, description="Q1 (High) | Q1-Q2 | Q2-Q3 | Q3-Q4. null = no filter.")
-    num_results: int = Field(3, ge=1, le=10, description="Number of recommendations (1-10).")
+    num_results: int = Field(3, ge=1, le=3, description="Number of recommendations (1-3).")
 
     model_config = {
         "json_schema_extra": {
@@ -337,6 +337,10 @@ async def recommend(raw_request: Request):
     # Clean placeholders
     PH = {"string", ""}
     cleaned_indexing = [idx for idx in request.indexing_required if idx.lower() not in PH]
+    # "Any" means "must be indexed somewhere, but we don't care where"
+    indexing_any = "Any" in cleaned_indexing
+    if indexing_any:
+        cleaned_indexing = []  # Don't filter by specific index
     cleaned_oa = request.oa_preference if request.oa_preference not in PH else "Any"
     cleaned_impact = request.target_impact
     if cleaned_impact and cleaned_impact.lower() in PH: cleaned_impact = None
@@ -350,6 +354,7 @@ async def recommend(raw_request: Request):
         article_type=request.article_type,
         discipline=cleaned_discipline,
         indexing_required=cleaned_indexing,
+        indexing_any=indexing_any,
         oa_preference=cleaned_oa,
         max_apc=cleaned_apc,
         target_impact=cleaned_impact,
@@ -477,7 +482,7 @@ Analyze the manuscript content against the journal's aims, scope, audience, subj
 
 Respond ONLY with valid JSON (no markdown, no backticks):
 {
-  "journal_name": "...",
+  "journal_name": "Just the journal name — no subtitles, no 'official publication of...', no publisher name",
   "overall_fit_assessment": "A 2-3 sentence honest assessment of how well the manuscript fits this journal and what the main gap is, if any.",
   "framing": {
     "current": "How the manuscript currently frames its contribution (1-2 sentences)",
@@ -561,14 +566,34 @@ Provide specific, actionable tailoring advice for this exact manuscript-journal 
 
 
 @app.get("/journals/search")
-def search_journals(q: str, limit: int = 10):
-    """Search journals by name."""
+def search_journals(q: str, limit: int = 20):
+    """Search journals by name, publisher, or ISSN."""
     if not store.journals: raise HTTPException(status_code=503, detail="No journals loaded")
-    q_lower = q.lower()
+    q_lower = q.lower().strip()
     results = []
     for j in store.journals.values():
-        if q_lower in j.get("title", "").lower():
-            results.append({"id": j.get("id"), "title": j.get("title"), "publisher": j.get("publisher"), "issn": j.get("issn", j.get("electronic_issn", "")), "indexed_pubmed": j.get("indexed_pubmed", False), "in_doaj": j.get("in_doaj", False)})
+        title = j.get("title", "") or ""
+        publisher = j.get("publisher", "") or ""
+        eissn = j.get("electronic_issn", "") or ""
+        pissn = j.get("print_issn", "") or ""
+        # Search across title, publisher, and ISSNs
+        if (q_lower in title.lower()
+            or q_lower in publisher.lower()
+            or q_lower in eissn.lower()
+            or q_lower in pissn.lower()):
+            if not title:
+                continue  # Skip journals with no title
+            results.append({
+                "id": j.get("id"),
+                "title": title,
+                "publisher": publisher,
+                "issn": eissn or pissn,
+                "indexed_pubmed": j.get("indexed_pubmed", False),
+                "in_doaj": j.get("in_doaj", False),
+                "homepage": j.get("homepage", ""),
+                "impact_proxy": j.get("impact_proxy", ""),
+                "oa_model": j.get("oa_model", ""),
+            })
             if len(results) >= limit: break
     return {"results": results, "total": len(results)}
 
@@ -588,10 +613,55 @@ def get_stats():
     return {"total_journals": len(journals), "indexed_pubmed": sum(1 for j in journals if j.get("indexed_pubmed")), "in_doaj": sum(1 for j in journals if j.get("in_doaj")), "has_scope": sum(1 for j in journals if j.get("aims_scope")), "has_apc_info": sum(1 for j in journals if j.get("apc_display")), "vector_store": store.get_stats(), "feedback_collected": len(feedback_log)}
 
 
+ARTICLE_TYPES = [
+    "Original Research",
+    "Review Article",
+    "Systematic Review",
+    "Meta-Analysis",
+    "Case Report",
+    "Case Series",
+    "Short Communication / Brief Report",
+    "Letter to the Editor",
+    "Editorial",
+    "Commentary / Opinion",
+    "Perspective",
+    "Methods / Protocols",
+    "Technical Note",
+    "Book Review",
+    "Conference Paper",
+    "Data Paper / Data Article",
+]
+
+INDEXING_OPTIONS = [
+    "Any",
+    "PubMed/MEDLINE",
+    "DOAJ",
+    "Scopus",
+    "Web of Science",
+    "Embase",
+    "PsycINFO",
+    "CINAHL",
+    "ERIC",
+    "EconLit",
+    "MathSciNet",
+    "zbMATH",
+    "Chemical Abstracts Service (CAS)",
+    "Inspec",
+    "GeoRef",
+    "AGRIS",
+    "Emerging Sources Citation Index (ESCI)",
+    "SCImago (SJR)",
+]
+
+
 @app.get("/disciplines")
 def get_disciplines():
-    """List available discipline options."""
-    return {"disciplines": DISCIPLINES}
+    """List available options for disciplines, article types, and indexing."""
+    return {
+        "disciplines": DISCIPLINES,
+        "article_types": ARTICLE_TYPES,
+        "indexing_options": INDEXING_OPTIONS,
+    }
 
 
 @app.get("/", include_in_schema=False)

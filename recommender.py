@@ -16,6 +16,7 @@ class UserConstraints:
     article_type: str = "Original Research"
     discipline: str = ""
     indexing_required: list[str] = field(default_factory=list)
+    indexing_any: bool = False
     oa_preference: str = "Any"
     apc_free_only: bool = False
     max_apc: Optional[float] = None
@@ -145,6 +146,12 @@ class RecommendationEngine:
                 if j.get("in_doaj"): jidx.add("DOAJ")
                 for n in j.get("indexing", []): jidx.add(n)
                 if not set(constraints.indexing_required).issubset(jidx):
+                    stats["removed_by_indexing"] += 1; continue
+
+            if constraints.indexing_any:
+                # Must be indexed somewhere — PubMed, DOAJ, or any listed indexing
+                has_any_index = j.get("indexed_pubmed") or j.get("in_doaj") or bool(j.get("indexing"))
+                if not has_any_index:
                     stats["removed_by_indexing"] += 1; continue
 
             if constraints.oa_preference == "Open Access Only":
