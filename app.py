@@ -658,6 +658,167 @@ def get_journal(journal_id: int):
     return journal
 
 
+class KeywordSearchRequest(BaseModel):
+    abstract: str = Field(..., min_length=50, description="Research abstract to extract keywords from")
+    discipline: str = Field("Any", description="Optional discipline filter")
+    limit: int = Field(10, ge=1, le=20, description="Max results")
+
+    @field_validator("abstract", mode="before")
+    @classmethod
+    def clean_abstract(cls, v):
+        return _clean_text(v)
+
+
+# Stopwords for keyword extraction
+_STOPWORDS = {
+    "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+    "have", "has", "had", "do", "does", "did", "will", "would", "could",
+    "should", "may", "might", "shall", "can", "need", "must", "let",
+    "in", "on", "at", "to", "for", "with", "from", "by", "of", "and",
+    "or", "but", "not", "no", "nor", "so", "yet", "both", "either",
+    "this", "that", "these", "those", "it", "its", "we", "our", "they",
+    "their", "them", "he", "she", "his", "her", "who", "which", "what",
+    "where", "when", "how", "why", "than", "then", "also", "very",
+    "more", "most", "such", "each", "every", "all", "any", "few",
+    "some", "many", "much", "own", "other", "only", "same", "just",
+    "about", "above", "after", "again", "against", "before", "below",
+    "between", "during", "into", "through", "under", "until", "upon",
+    "over", "out", "up", "down", "off", "here", "there", "once",
+    "if", "as", "while", "because", "although", "though", "since",
+    "whether", "however", "therefore", "thus", "hence", "moreover",
+    "furthermore", "nevertheless", "nonetheless", "whereas", "whereby",
+    "been", "being", "having", "using", "based", "used", "showed",
+    "found", "observed", "compared", "performed", "obtained",
+    "results", "study", "research", "paper", "article", "report",
+    "method", "methods", "approach", "data", "analysis", "conclusion",
+    "introduction", "background", "objective", "aim", "purpose",
+    "figure", "table", "respectively", "significantly", "approximately",
+    "i", "ii", "iii", "et", "al", "eg", "ie", "vs", "via",
+}
+
+
+def _extract_keywords(text, max_keywords=20):
+    """Extract meaningful keywords from text by removing stopwords and short words."""
+    # Tokenize: split on non-alphanumeric, keep hyphenated terms
+    words = re.findall(r"[a-zA-Z][\w-]*[a-zA-Z]|[a-zA-Z]{3,}", text.lower())
+    # Remove stopwords and very short words
+    keywords = [w for w in words if w not in _STOPWORDS and len(w) >= 3]
+    # Count frequency and return top N unique keywords
+    from collections import Counter
+    counts = Counter(keywords)
+    return [word for word, _ in counts.most_common(max_keywords)]
+
+
+@app.post("/keyword-search")
+def keyword_search(request: KeywordSearchRequest):
+    """
+    Search journals by extracting keywords from an abstract and matching
+    against journal subjects, topics, editorial keywords, and scope.
+    No AI/LLM involved — fast, deterministic keyword matching.
+    """
+    if not store.journals:
+        raise HTTPException(status_code=503, detail="No journals loaded")
+
+    # Validate text quality
+    if not _is_meaningful_text(request.abstract):
+        raise HTTPException(
+            status_code=422,
+            detail="The text doesn't appear to contain meaningful scientific content. Please paste a real research abstract."
+        )
+
+    # Extract keywords from abstract
+    keywords = _extract_keywords(request.abstract)
+    if not keywords:
+        raise HTTPException(status_code=422, detail="Could not extract meaningful keywords from the abstract.")
+
+    keyword_set = set(keywords)
+
+    # Score each journal
+    scored = []
+    for j in store.journals.values():
+        title = (j.get("title", "") or "").lower()
+        if not title:
+            continue
+
+        score = 0
+        matched_keywords = []
+
+        # Build searchable text fields for this journal
+        subjects_lower = [s.lower() for s in j.get("subject_categories", [])]
+        topics_lower = [t.lower() for t in j.get("top_topics", [])]
+        ed_keywords_lower = [k.lower() for k in j.get("editorial_keywords", [])]
+        scope_lower = (j.get("aims_scope", "") or "").lower()
+        fields_lower = [f.lower() for f in j.get("fields", [])]
+        subfields_lower = [sf.lower() for sf in j.get("subfields", [])]
+
+        for kw in keyword_set:
+            # Check each field with different weights
+            if any(kw in s for s in ed_keywords_lower):
+                score += 3  # Editorial keywords are the strongest signal
+                matched_keywords.append(kw)
+            elif any(kw in t for t in topics_lower):
+                score += 2.5
+                matched_keywords.append(kw)
+            elif any(kw in s for s in subjects_lower):
+                score += 2
+                matched_keywords.append(kw)
+            elif any(kw in sf for sf in subfields_lower):
+                score += 2
+                matched_keywords.append(kw)
+            elif any(kw in f for f in fields_lower):
+                score += 1.5
+                matched_keywords.append(kw)
+            elif kw in scope_lower:
+                score += 1
+                matched_keywords.append(kw)
+            elif kw in title:
+                score += 0.5
+                matched_keywords.append(kw)
+
+        if score > 0:
+            scored.append((score, list(set(matched_keywords)), j))
+
+    # Optional discipline filter
+    if request.discipline and request.discipline != "Any":
+        disc_lower = request.discipline.lower()
+        scored = [
+            (s, m, j) for s, m, j in scored
+            if any(disc_lower in cat.lower() for cat in j.get("subject_categories", []))
+            or any(disc_lower in f.lower() for f in j.get("fields", []))
+        ]
+
+    # Sort by score descending
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    # Build results
+    results = []
+    for score, matched, j in scored[:request.limit]:
+        eissn = j.get("electronic_issn", "") or ""
+        pissn = j.get("print_issn", "") or ""
+        results.append({
+            "id": j.get("id"),
+            "title": j.get("title", ""),
+            "publisher": j.get("publisher", ""),
+            "issn": eissn or pissn,
+            "indexed_pubmed": j.get("indexed_pubmed", False),
+            "in_doaj": j.get("in_doaj", False),
+            "homepage": j.get("homepage", ""),
+            "impact_proxy": j.get("impact_proxy", ""),
+            "oa_model": j.get("oa_model", ""),
+            "apc_display": j.get("apc_display", ""),
+            "match_score": round(score, 1),
+            "matched_keywords": matched,
+            "subjects": j.get("subject_categories", [])[:5],
+        })
+
+    return {
+        "results": results,
+        "total": len(results),
+        "keywords_extracted": keywords,
+        "query_type": "keyword_match",
+    }
+
+
 @app.get("/stats")
 def get_stats():
     """Database statistics."""
