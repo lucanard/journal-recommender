@@ -23,6 +23,7 @@ class UserConstraints:
     min_impact_factor: Optional[float] = None
     target_impact: Optional[str] = None
     keywords: str = ""
+    language: str = "en"
     # Manuscript sections (optional, improve matching quality)
     introduction_conclusion: str = ""
     methods: str = ""
@@ -91,6 +92,29 @@ class RecommendationEngine:
         filtered, stats = self._apply_constraints(raw_results, constraints)
         timing["filter_ms"] = int((time.time() - t0) * 1000)
         log.info(f"Pipeline: {len(raw_results)} → {len(filtered)} after filtering")
+
+        # Step 2b: Language boost — prioritize journals matching abstract language
+        if constraints.language and constraints.language not in ("en", "any", ""):
+            lang_map = {
+                "zh": ["chinese", "zh", "mandarin"],
+                "ar": ["arabic", "ar"],
+                "es": ["spanish", "es", "español"],
+                "fr": ["french", "fr", "français"],
+                "de": ["german", "de", "deutsch"],
+                "pt": ["portuguese", "pt", "português"],
+                "ja": ["japanese", "ja"],
+                "ko": ["korean", "ko"],
+            }
+            lang_terms = lang_map.get(constraints.language, [constraints.language])
+            for r in filtered:
+                j = r["journal"]
+                j_langs = [l.lower() for l in j.get("languages", [])]
+                if any(term in lang for term in lang_terms for lang in j_langs):
+                    r["score"] = r["score"] * 1.5  # 50% boost for language match
+                    r["language_match"] = True
+            # Re-sort by boosted score
+            filtered.sort(key=lambda x: x["score"], reverse=True)
+            log.info(f"Language boost applied for '{constraints.language}'")
 
         relaxed = False
         if len(filtered) == 0 and len(raw_results) > 0:

@@ -88,14 +88,24 @@ def _is_meaningful_text(text):
     if not text or len(text) < 50:
         return False
 
-    words = text.split()
+    # Non-Latin scripts: check character count instead of word matching
+    # CJK (Chinese, Japanese, Korean)
+    cjk_count = sum(1 for c in text if '\u4e00' <= c <= '\u9fff' or '\u3040' <= c <= '\u30ff' or '\uac00' <= c <= '\ud7af')
+    if cjk_count > len(text) * 0.15:
+        return len(text) >= 50  # CJK text — just check length
 
-    # Must have a reasonable number of words
+    # Arabic script
+    ar_count = sum(1 for c in text if '\u0600' <= c <= '\u06ff')
+    if ar_count > len(text) * 0.15:
+        return len(text) >= 50
+
+    # Latin-script text: check for common words
+    words = text.split()
     if len(words) < 10:
         return False
 
-    # Check against a basic English word set (common scientific words)
     common_words = {
+        # English
         "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
         "have", "has", "had", "do", "does", "did", "will", "would", "could",
         "should", "may", "might", "shall", "can", "need", "must",
@@ -107,21 +117,94 @@ def _is_meaningful_text(text):
         "using", "based", "between", "during", "after", "before",
         "showed", "found", "compared", "used", "performed", "observed",
         "significant", "clinical", "experimental", "novel", "specific",
+        # Spanish
+        "el", "la", "los", "las", "del", "un", "una", "por", "con", "para",
+        "como", "fue", "entre", "sobre", "este", "más", "ser", "pero",
+        # French
+        "le", "la", "les", "des", "une", "dans", "pour", "avec", "sur", "par",
+        "est", "sont", "cette", "nous", "vous", "plus", "qui", "que",
+        # German
+        "der", "die", "das", "den", "dem", "ein", "eine", "und", "ist", "sind",
+        "für", "mit", "auf", "von", "werden", "wurde", "nicht", "nach",
+        # Portuguese
+        "os", "as", "um", "uma", "do", "da", "dos", "das", "em", "no", "na",
+        "por", "com", "para", "como", "foi", "são", "mais",
     }
     lower_words = [w.lower().strip(".,;:()[]") for w in words]
     recognized = sum(1 for w in lower_words if w in common_words)
     ratio = recognized / len(lower_words) if lower_words else 0
 
-    # At least 15% of words should be recognizable common English words
-    if ratio < 0.15:
+    if ratio < 0.12:
         return False
 
-    # Average word length check — gibberish tends to have unusual word lengths
     avg_len = sum(len(w) for w in lower_words) / len(lower_words)
     if avg_len < 2 or avg_len > 15:
         return False
 
     return True
+
+
+def _detect_language(text):
+    """
+    Simple language detection based on common word frequency.
+    Returns a language code: 'en', 'es', 'fr', 'de', 'pt', 'zh', 'ar', 'ja', 'ko', or 'other'.
+    Not a full NLP solution — just enough to route to the right journals.
+    """
+    if not text:
+        return "en"
+
+    # Check for CJK characters (Chinese, Japanese, Korean)
+    cjk_count = sum(1 for c in text if '\u4e00' <= c <= '\u9fff')
+    if cjk_count > len(text) * 0.1:
+        # Distinguish Chinese vs Japanese (Japanese uses hiragana/katakana)
+        jp_count = sum(1 for c in text if '\u3040' <= c <= '\u30ff')
+        if jp_count > 5:
+            return "ja"
+        return "zh"
+
+    # Check for Korean (Hangul)
+    ko_count = sum(1 for c in text if '\uac00' <= c <= '\ud7af')
+    if ko_count > len(text) * 0.1:
+        return "ko"
+
+    # Check for Arabic script
+    ar_count = sum(1 for c in text if '\u0600' <= c <= '\u06ff')
+    if ar_count > len(text) * 0.1:
+        return "ar"
+
+    # Latin-script languages: use common word detection
+    words = [w.lower().strip(".,;:()[]\"'") for w in text.split() if len(w) > 1]
+    if not words:
+        return "en"
+
+    # Spanish markers
+    es_words = {"el", "la", "los", "las", "del", "un", "una", "por", "con", "para", "como", "fue", "entre", "sobre", "este", "esta", "estos", "más", "ser", "pero", "también", "desde", "hasta", "donde", "cada", "tiene", "puede", "hacer", "otro", "otra", "todos", "todo", "muy", "sin", "ya", "cuando", "según", "cual"}
+    es_count = sum(1 for w in words if w in es_words)
+
+    # French markers
+    fr_words = {"le", "la", "les", "des", "une", "dans", "pour", "avec", "sur", "par", "est", "sont", "cette", "ces", "nous", "vous", "être", "avoir", "fait", "plus", "qui", "que", "aux", "ont", "été", "peut", "entre", "après", "aussi", "très", "sans", "même", "tout", "comme", "donc"}
+    fr_count = sum(1 for w in words if w in fr_words)
+
+    # German markers
+    de_words = {"der", "die", "das", "den", "dem", "ein", "eine", "und", "ist", "sind", "für", "mit", "auf", "von", "werden", "wurde", "wird", "nicht", "nach", "auch", "sich", "bei", "aus", "über", "als", "oder", "nur", "noch", "kann", "durch", "unter", "zwischen", "dieser", "diese", "dieses"}
+    de_count = sum(1 for w in words if w in de_words)
+
+    # Portuguese markers
+    pt_words = {"os", "as", "um", "uma", "do", "da", "dos", "das", "em", "no", "na", "por", "com", "para", "como", "foi", "são", "mais", "pode", "ser", "sobre", "entre", "este", "esta", "cada", "tem", "quando", "também", "seus", "suas", "pela", "pelo", "aos", "nas", "nos"}
+    pt_count = sum(1 for w in words if w in pt_words)
+
+    # English markers
+    en_words = {"the", "is", "are", "was", "were", "have", "has", "had", "been", "will", "would", "could", "should", "which", "that", "this", "from", "with", "they", "their", "there", "were", "been", "these", "those", "than", "then", "when", "where", "what", "while", "between", "through", "during", "after", "before"}
+    en_count = sum(1 for w in words if w in en_words)
+
+    scores = {"en": en_count, "es": es_count, "fr": fr_count, "de": de_count, "pt": pt_count}
+    best = max(scores, key=scores.get)
+
+    # If no clear winner, default to English
+    if scores[best] < 3:
+        return "en"
+
+    return best
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -147,7 +230,8 @@ class RecommendRequest(BaseModel):
     max_apc: float | None = Field(None, description="Max APC in USD. null = no limit.")
     min_impact_factor: float | None = Field(None, description="Minimum Impact Factor (e.g. 2.0, 5.0). null = no filter.")
     target_impact: str | None = Field(None, description="Q1 (High) | Q1-Q2 | Q2-Q3 | Q3-Q4. null = no filter.")
-    num_results: int = Field(3, ge=1, le=3, description="Number of recommendations (1-3).")
+    num_results: int = Field(3, ge=1, le=10, description="Number of recommendations (1-10).")
+    language_preference: str = Field("auto", description="Language preference: 'auto' (detect from abstract), 'en', 'es', 'fr', 'de', 'pt', 'zh', 'ar', 'ja', 'ko', or 'any' (no preference).")
 
     model_config = {
         "json_schema_extra": {
@@ -402,6 +486,15 @@ async def recommend(raw_request: Request):
     if cleaned_min_if is not None and cleaned_min_if <= 0: cleaned_min_if = None
     cleaned_discipline = request.discipline if request.discipline not in PH and request.discipline != "Any" else ""
 
+    # Detect language
+    lang_pref = request.language_preference
+    if lang_pref == "auto":
+        detected_lang = _detect_language(request.abstract)
+    elif lang_pref == "any":
+        detected_lang = "any"
+    else:
+        detected_lang = lang_pref
+
     constraints = UserConstraints(
         article_type=request.article_type,
         discipline=cleaned_discipline,
@@ -416,10 +509,24 @@ async def recommend(raw_request: Request):
         introduction_conclusion=request.introduction_conclusion,
         methods=request.methods,
         results_summary=request.results_summary,
+        language=detected_lang,
     )
 
     try:
         result = engine.recommend(abstract=request.abstract, constraints=constraints, num_results=request.num_results)
+        result["detected_language"] = detected_lang
+        result["preferences_applied"] = {
+            "article_type": request.article_type,
+            "discipline": request.discipline,
+            "indexing_required": request.indexing_required,
+            "oa_preference": request.oa_preference,
+            "apc_free_only": request.apc_free_only,
+            "max_apc": request.max_apc,
+            "min_impact_factor": request.min_impact_factor,
+            "target_impact": request.target_impact,
+            "language": detected_lang,
+            "num_results": request.num_results,
+        }
     except Exception as e:
         log.error(f"Recommendation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")
@@ -547,11 +654,6 @@ Respond ONLY with valid JSON (no markdown, no backticks):
   ],
   "keywords_to_add": ["keyword1", "keyword2", "keyword3"],
   "keywords_to_avoid": ["keyword1", "keyword2"],
-  "structure": {
-    "recommended_sections": ["Introduction", "..."],
-    "section_notes": "Any notes on section emphasis, length, or ordering for this journal",
-    "estimated_word_count": "Recommended word count range for this article type at this journal"
-  },
   "methodology_emphasis": {
     "highlight": ["What aspects of methods to emphasize for this journal"],
     "downplay": ["What aspects are less relevant to this journal's audience"]
