@@ -1,443 +1,447 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI Journal Recommender</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --bg-deep: #0B1120;
-      --bg-mid: #111B2E;
-      --bg-card: #162036;
-      --bg-card-hover: #1A2744;
-      --bg-input: #0D1526;
-      --border: #1E2D4A;
-      --border-focus: #D4A041;
-      --border-subtle: #1A2640;
-      --gold: #D4A041;
-      --gold-dim: #B8872E;
-      --gold-glow: #D4A04130;
-      --gold-soft: #D4A04118;
-      --amber: #E8B54D;
-      --green: #3EBF6F;
-      --green-bg: #3EBF6F15;
-      --green-border: #3EBF6F30;
-      --yellow: #E8B54D;
-      --yellow-bg: #E8B54D12;
-      --yellow-border: #E8B54D25;
-      --red: #E85D5D;
-      --red-bg: #E85D5D12;
-      --text: #E8E4DD;
-      --text-mid: #A8A29D;
-      --text-muted: #6B6560;
-      --text-dim: #4A453F;
-      --display: 'Cormorant Garamond', 'Georgia', serif;
-      --body: 'DM Sans', 'Segoe UI', sans-serif;
-      --mono: 'JetBrains Mono', 'Menlo', monospace;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
-    body {
-      font-family: var(--body); background: var(--bg-deep);
-      color: var(--text); min-height: 100vh; overflow-x: hidden;
-    }
-    body::before {
-      content: ''; position: fixed; inset: 0;
-      background:
-        radial-gradient(ellipse 80% 60% at 20% 10%, #1a2d5a22 0%, transparent 70%),
-        radial-gradient(ellipse 60% 50% at 80% 80%, #2a1a0a18 0%, transparent 70%);
-      pointer-events: none; z-index: 0;
-    }
-    body::after {
-      content: ''; position: fixed; inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-      pointer-events: none; z-index: 0; opacity: 0.5;
-    }
-    #root { position: relative; z-index: 1; }
-    ::selection { background: var(--gold-glow); color: var(--amber); }
-    textarea, input, select, button { font-family: inherit; }
-    textarea:focus, input:focus, select:focus { outline: none; border-color: var(--border-focus) !important; box-shadow: 0 0 0 3px var(--gold-soft); }
-    textarea, input[type="text"], input[type="number"], select { transition: border-color 0.2s, box-shadow 0.2s; }
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .stagger-1 { animation: fadeUp 0.5s ease both 0.05s; }
-    .stagger-2 { animation: fadeUp 0.5s ease both 0.1s; }
-    .stagger-3 { animation: fadeUp 0.5s ease both 0.15s; }
-    .stagger-4 { animation: fadeUp 0.5s ease both 0.2s; }
-    .stagger-5 { animation: fadeUp 0.5s ease both 0.25s; }
-    input[type="range"] { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 2px; outline: none; cursor: pointer; background: var(--border); }
-    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--gold); border: 3px solid var(--bg-card); box-shadow: 0 0 8px var(--gold-glow); cursor: pointer; }
-    input[type="range"]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--gold); border: 3px solid var(--bg-card); box-shadow: 0 0 8px var(--gold-glow); cursor: pointer; }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: var(--bg-deep); }
-    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>PubFit — AI Journal Recommender</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231E3A8A'/><text x='16' y='23' text-anchor='middle' fill='white' font-size='18' font-weight='bold' font-family='sans-serif'>P</text></svg>"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+textarea,input,select,button{font-family:inherit}
+.fade-in{animation:fadeIn .4s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:#f1f5f9}
+::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:3px}
+</style>
 </head>
 <body>
-  <div id="root"></div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.9/babel.min.js"></script>
-  <script type="text/babel">
-    const { useState, useEffect } = React;
-    const API_BASE = window.location.protocol === "file:"
-      ? "http://localhost:8000"     // Opening index.html directly from Desktop
-      : window.location.origin;     // Served by backend (localhost or Render)
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+const {useState,useEffect,useCallback,useRef,Fragment}=React;
 
-    const ARTICLE_TYPES = ["Original Research","Review Article","Case Report","Short Communication","Systematic Review","Meta-Analysis","Letter/Correspondence"];
-    const INDEXING_OPTIONS = ["PubMed/MEDLINE","DOAJ","Scopus","Web of Science"];
-    const OA_OPTIONS = ["Any","Open Access Only","Hybrid"];
-    const IMPACT_OPTIONS = ["Any","Q1 (High)","Q1-Q2","Q2-Q3","Q3-Q4"];
-    const DISCIPLINES = ["Any","Agricultural Sciences","Biochemistry & Molecular Biology","Biomedical Engineering","Chemistry","Clinical Medicine","Computer Science & AI","Earth & Environmental Sciences","Ecology & Evolution","Economics & Business","Education","Engineering","Epidemiology & Public Health","Food Science & Nutrition","Genetics & Genomics","Humanities & Social Sciences","Immunology","Law","Materials Science","Mathematics & Statistics","Microbiology","Neuroscience","Nursing & Health Professions","Pharmacology & Toxicology","Physics & Astronomy","Psychology & Psychiatry","Veterinary Science","Other"];
+/* ═══════════════════════════════════════════════════════════════
+   CONFIG
+   ═══════════════════════════════════════════════════════════════ */
+const API=window.location.origin; // same origin — FastAPI serves this file
 
-    function SectionHeader({num,title,optional,extra}){
-      return(<div style={{display:"flex",alignItems:"baseline",gap:"10px",marginBottom:"12px"}}>
-        <span style={{fontFamily:"var(--mono)",fontSize:"11px",fontWeight:600,color:"var(--gold)",background:"var(--gold-soft)",padding:"2px 8px",borderRadius:"4px"}}>{num}</span>
-        <span style={{fontFamily:"var(--display)",fontSize:"20px",fontWeight:600,color:"var(--text)",letterSpacing:"-0.3px"}}>{title}</span>
-        {optional&&<span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)"}}>optional</span>}
-        {extra}
-      </div>);
-    }
-    function FieldLabel({label}){return(<div style={{fontFamily:"var(--body)",fontSize:"11px",fontWeight:600,color:"var(--text-muted)",marginBottom:"6px",textTransform:"uppercase",letterSpacing:"0.6px"}}>{label}</div>);}
-    function Sel({value,onChange,options}){return(<select value={value} onChange={onChange} style={{width:"100%",background:"var(--bg-input)",border:"1.5px solid var(--border)",borderRadius:"8px",fontFamily:"var(--body)",fontSize:"13px",color:"var(--text)",padding:"9px 12px",cursor:"pointer"}}>{options.map(o=><option key={o} value={o}>{o}</option>)}</select>);}
-    function TInput({value,onChange,placeholder,type,min,step}){return(<input type={type||"text"} value={value} onChange={onChange} placeholder={placeholder} min={min} step={step} style={{width:"100%",background:"var(--bg-input)",border:"1.5px solid var(--border)",borderRadius:"8px",fontFamily:"var(--body)",fontSize:"13px",color:"var(--text)",padding:"9px 12px"}}/>);}
-    function Pill({label,active,onClick}){return(<button onClick={onClick} style={{background:active?"var(--gold-soft)":"transparent",border:"1.5px solid "+(active?"var(--gold)":"var(--border)"),color:active?"var(--gold)":"var(--text-muted)",padding:"5px 16px",borderRadius:"20px",cursor:"pointer",fontFamily:"var(--body)",fontSize:"12px",fontWeight:active?600:400,transition:"all 0.15s"}}>{label}</button>);}
-    function Bdg({label,variant}){
-      const s={gold:{bg:"var(--gold-soft)",c:"var(--gold)",b:"var(--gold-glow)"},green:{bg:"var(--green-bg)",c:"var(--green)",b:"var(--green-border)"},muted:{bg:"var(--bg-card)",c:"var(--text-muted)",b:"var(--border)"},mono:{bg:"var(--bg-card)",c:"var(--text-dim)",b:"var(--border)"}}[variant]||{bg:"var(--bg-card)",c:"var(--text-muted)",b:"var(--border)"};
-      return(<span style={{background:s.bg,color:s.c,padding:"3px 10px",borderRadius:"4px",fontFamily:variant==="mono"?"var(--mono)":"var(--body)",fontSize:"11px",fontWeight:500,border:"1px solid "+s.b,whiteSpace:"nowrap"}}>{label}</span>);
-    }
+/* ═══════════════════════════════════════════════════════════════
+   ICONS (inline SVG — no external dependency)
+   ═══════════════════════════════════════════════════════════════ */
+const I={
+  Sparkles:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>,
+  Search:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+  Filter:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
+  Target:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>,
+  FileEdit:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22h6a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v10"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10.4 12.6a2 2 0 1 1 3 3L8 21l-4 1 1-4Z"/></svg>,
+  Download:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>,
+  ArrowRight:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>,
+  Check:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>,
+  X:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+  Menu:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>,
+  TrendingUp:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
+  Clock:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+  FileText:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>,
+  ExternalLink:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>,
+  ChevronDown:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>,
+  Award:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/></svg>,
+  Users:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  Heart:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>,
+  Mail:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>,
+  Loader:()=><svg className="spin" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>,
+  ThumbsUp:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>,
+  Star:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+};
 
-    function JournalCard({rec,fb,onFb,index}){
-      const fc={High:{c:"var(--green)",bg:"var(--green-bg)",b:"var(--green-border)"},Medium:{c:"var(--yellow)",bg:"var(--yellow-bg)",b:"var(--yellow-border)"},Low:{c:"var(--red)",bg:"var(--red-bg)",b:"var(--red)25"}}[rec.fit]||{c:"var(--yellow)",bg:"var(--yellow-bg)",b:"var(--yellow-border)"};
-      const[hover,setHover]=useState(false);
-      return(
-        <div className={"stagger-"+Math.min(index+1,5)} style={{background:hover?"var(--bg-card-hover)":"var(--bg-card)",border:"1px solid "+(hover?"var(--border-focus)30":"var(--border)"),borderRadius:"14px",padding:"24px 26px",marginBottom:"16px",transition:"all 0.25s",boxShadow:hover?"0 4px 24px #00000030":"none"}} onMouseEnter={()=>setHover(true)} onMouseLeave={()=>setHover(false)}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"16px",gap:"12px"}}>
-            <div style={{flex:1}}>
-              <div style={{display:"flex",alignItems:"baseline",gap:"10px",flexWrap:"wrap"}}>
-                <span style={{fontFamily:"var(--mono)",fontSize:"12px",fontWeight:600,color:"var(--gold)",background:"var(--gold-soft)",padding:"1px 8px",borderRadius:"4px"}}>#{rec.rank}</span>
-                <span style={{fontFamily:"var(--display)",fontSize:"20px",fontWeight:600,color:"var(--text)",letterSpacing:"-0.3px"}}>{rec.journal_name}</span>
-              </div>
-              <div style={{fontFamily:"var(--body)",fontSize:"13px",color:"var(--text-muted)",marginTop:"4px"}}>
-                {rec.publisher}
-                {rec.homepage&&<a href={rec.homepage} target="_blank" rel="noopener noreferrer" style={{marginLeft:"10px",color:"var(--gold-dim)",fontSize:"12px",textDecoration:"none"}}>Visit journal →</a>}
-              </div>
+/* ═══════════════════════════════════════════════════════════════
+   HASH ROUTER
+   ═══════════════════════════════════════════════════════════════ */
+function useRouter(){
+  const [path,setPath]=useState(window.location.hash.slice(1)||'/');
+  useEffect(()=>{
+    const h=()=>setPath(window.location.hash.slice(1)||'/');
+    window.addEventListener('hashchange',h);
+    return ()=>window.removeEventListener('hashchange',h);
+  },[]);
+  const navigate=useCallback((to)=>{window.location.hash=to;window.scrollTo(0,0);},[]);
+  return {path,navigate};
+}
+function Link({to,children,...props}){
+  return <a href={'#'+to} {...props}>{children}</a>;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NAVIGATION
+   ═══════════════════════════════════════════════════════════════ */
+function Navigation({path}){
+  const [open,setOpen]=useState(false);
+  const active=(p)=>path===p?'text-[#1E3A8A]':'text-gray-600 hover:text-[#1E3A8A]';
+  return(
+    <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-lg flex items-center justify-center">
+              <span className="w-6 h-6 text-white"><I.Sparkles/></span>
             </div>
-            <span style={{background:fc.bg,color:fc.c,padding:"4px 14px",borderRadius:"20px",fontFamily:"var(--mono)",fontSize:"11px",fontWeight:600,border:"1px solid "+fc.b,whiteSpace:"nowrap"}}>{rec.fit} Fit</span>
+            <span className="font-bold text-xl text-[#1E3A8A]">PubFit</span>
+          </Link>
+          <div className="hidden md:flex items-center gap-8">
+            <Link to="/" className={`text-sm font-medium transition-colors ${active('/')}`}>Home</Link>
+            <Link to="/features" className={`text-sm font-medium transition-colors ${active('/features')}`}>Features</Link>
+            <Link to="/pricing" className={`text-sm font-medium transition-colors ${active('/pricing')}`}>Pricing</Link>
+            <Link to="/about" className={`text-sm font-medium transition-colors ${active('/about')}`}>About</Link>
           </div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:"7px",marginBottom:"18px"}}>
-            {rec.oa_model&&<Bdg label={rec.oa_model} variant="gold"/>}
-            {rec.apc_estimate&&<Bdg label={rec.apc_estimate==="Free"||rec.apc_estimate==="N/A"?"No APC":"APC: "+rec.apc_estimate} variant="muted"/>}
-            {rec.impact_factor&&rec.impact_factor!=="?"&&rec.impact_factor!=="Unknown"&&<Bdg label={"IF: "+rec.impact_factor} variant="muted"/>}
-            {rec.indexing&&rec.indexing.map(ix=><Bdg key={ix} label={ix} variant="green"/>)}
-            {rec.impact_proxy&&rec.impact_proxy!=="Unknown"&&<Bdg label={rec.impact_proxy} variant="muted"/>}
-            {rec.acceptance_rate&&rec.acceptance_rate!=="N/A"&&rec.acceptance_rate!=="Not publicly available"&&<Bdg label={"Accept: "+rec.acceptance_rate} variant="muted"/>}
-            {rec.review_time&&rec.review_time!=="N/A"&&rec.review_time!=="Not publicly available"&&<Bdg label={"Review: "+rec.review_time} variant="muted"/>}
-            {rec.score>0&&<Bdg label={"Sim: "+rec.score.toFixed(3)} variant="mono"/>}
+          <div className="hidden md:flex items-center gap-4">
+            <Link to="/dashboard" className="px-4 py-2 bg-[#14B8A6] text-white text-sm font-medium rounded-lg hover:bg-[#0F9B8E] transition-colors">Get Started Free</Link>
           </div>
-          <div style={{marginBottom:"16px"}}>
-            <div style={{fontFamily:"var(--mono)",fontSize:"10px",fontWeight:600,color:"var(--gold-dim)",marginBottom:"10px",letterSpacing:"0.8px"}}>WHY IT MATCHES</div>
-            {rec.reasons&&rec.reasons.map((r,i)=>(
-              <div key={i} style={{fontFamily:"var(--body)",fontSize:"13.5px",color:"var(--text-mid)",lineHeight:1.7,paddingLeft:"20px",position:"relative",marginBottom:"4px"}}>
-                <span style={{position:"absolute",left:0,top:"1px",color:"var(--green)",fontSize:"13px",fontWeight:700}}>✓</span>{r}
-              </div>
-            ))}
-          </div>
-          {rec.concern&&(
-            <div style={{fontFamily:"var(--body)",fontSize:"13px",color:"var(--yellow)",background:"var(--yellow-bg)",padding:"11px 16px",borderRadius:"10px",borderLeft:"3px solid var(--yellow-border)",marginBottom:"16px",lineHeight:1.65}}>
-              <span style={{fontWeight:600}}>Note: </span>{rec.concern}
+          <button onClick={()=>setOpen(!open)} className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100">
+            {open?<span className="w-6 h-6"><I.X/></span>:<span className="w-6 h-6"><I.Menu/></span>}
+          </button>
+        </div>
+      </div>
+      {open&&<div className="md:hidden border-t border-gray-200 bg-white px-4 py-4 space-y-3">
+        <Link to="/" className="block py-2 text-sm font-medium text-gray-600" onClick={()=>setOpen(false)}>Home</Link>
+        <Link to="/features" className="block py-2 text-sm font-medium text-gray-600" onClick={()=>setOpen(false)}>Features</Link>
+        <Link to="/pricing" className="block py-2 text-sm font-medium text-gray-600" onClick={()=>setOpen(false)}>Pricing</Link>
+        <Link to="/about" className="block py-2 text-sm font-medium text-gray-600" onClick={()=>setOpen(false)}>About</Link>
+        <Link to="/dashboard" className="block w-full px-4 py-2 bg-[#14B8A6] text-white text-sm font-medium rounded-lg text-center" onClick={()=>setOpen(false)}>Get Started Free</Link>
+      </div>}
+    </nav>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════════════════════════════════ */
+function Footer(){
+  return(
+    <footer className="bg-[#1E3A8A] text-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 bg-[#14B8A6] rounded-lg flex items-center justify-center"><span className="w-6 h-6 text-white"><I.Sparkles/></span></div>
+              <span className="font-bold text-xl">PubFit</span>
             </div>
-          )}
-          {rec.subjects&&rec.subjects.length>0&&(
-            <div style={{marginBottom:"16px"}}>
-              <div style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)",marginBottom:"5px",letterSpacing:"0.5px"}}>SUBJECTS</div>
-              <div style={{fontFamily:"var(--body)",fontSize:"12px",color:"var(--text-muted)",lineHeight:1.6}}>{rec.subjects.join("  ·  ")}</div>
+            <p className="text-sm text-gray-300">AI-powered journal matching and manuscript tailoring for researchers worldwide.</p>
+          </div>
+          <div><h3 className="font-semibold mb-4">Product</h3><ul className="space-y-2"><li><Link to="/features" className="text-sm text-gray-300 hover:text-white transition-colors">Features</Link></li><li><Link to="/pricing" className="text-sm text-gray-300 hover:text-white transition-colors">Pricing</Link></li><li><Link to="/dashboard" className="text-sm text-gray-300 hover:text-white transition-colors">Try Free</Link></li></ul></div>
+          <div><h3 className="font-semibold mb-4">Company</h3><ul className="space-y-2"><li><Link to="/about" className="text-sm text-gray-300 hover:text-white transition-colors">About Us</Link></li></ul></div>
+          <div><h3 className="font-semibold mb-4">Connect</h3><div className="flex gap-4"><span className="p-2 bg-white/10 rounded-lg"><span className="w-5 h-5"><I.Mail/></span></span></div></div>
+        </div>
+        <div className="mt-8 pt-8 border-t border-white/10 text-center text-sm text-gray-300"><p>&copy; 2026 PubFit. All rights reserved.</p></div>
+      </div>
+    </footer>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HOME PAGE
+   ═══════════════════════════════════════════════════════════════ */
+function HomePage(){
+  return(
+    <div className="bg-white">
+      <section className="relative bg-gradient-to-br from-[#1E3A8A] via-[#1E3A8A] to-[#14B8A6] text-white overflow-hidden">
+        <div className="absolute inset-0 opacity-10"><div className="absolute top-20 left-20 w-72 h-72 bg-white rounded-full blur-3xl"></div><div className="absolute bottom-20 right-20 w-96 h-96 bg-[#14B8A6] rounded-full blur-3xl"></div></div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+          <div className="text-center max-w-4xl mx-auto fade-in">
+            <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">Submit Smarter: AI Journal Recommendations + Manuscript Tailoring</h1>
+            <p className="text-xl md:text-2xl text-gray-100 mb-8">Paste your abstract → Get perfectly matched journals + journal-specific guidance to reduce desk rejections and improve acceptance chances.</p>
+            <div className="flex flex-wrap justify-center gap-8 mb-10">
+              <div className="flex items-center gap-2"><span className="w-5 h-5 text-[#14B8A6]"><I.Check/></span><span className="text-sm">Up to 50% desk rejections avoided</span></div>
+              <div className="flex items-center gap-2"><span className="w-5 h-5 text-[#14B8A6]"><I.Check/></span><span className="text-sm">Neutral &amp; cross-publisher</span></div>
+              <div className="flex items-center gap-2"><span className="w-5 h-5 text-[#14B8A6]"><I.Check/></span><span className="text-sm">Free basic recommendations</span></div>
             </div>
-          )}
-          <div style={{display:"flex",alignItems:"center",gap:"10px",borderTop:"1px solid var(--border)",paddingTop:"14px"}}>
-            <span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)",letterSpacing:"0.3px"}}>HELPFUL?</span>
-            {["up","down"].map(t=>(
-              <button key={t} onClick={()=>onFb(t)} style={{background:fb===t?"var(--gold-soft)":"transparent",border:"1.5px solid "+(fb===t?"var(--gold)":"var(--border)"),borderRadius:"6px",padding:"4px 10px",cursor:"pointer",fontSize:"14px",transition:"all 0.15s"}}>{t==="up"?"👍":"👎"}</button>
-            ))}
-            {fb&&<span style={{fontFamily:"var(--body)",fontSize:"12px",color:"var(--green)"}}>Recorded — thank you</span>}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link to="/dashboard" className="px-8 py-4 bg-[#14B8A6] text-white text-lg font-semibold rounded-lg hover:bg-[#0F9B8E] transition-colors flex items-center justify-center gap-2">Try for Free <span className="w-5 h-5"><I.ArrowRight/></span></Link>
+              <Link to="/pricing" className="px-8 py-4 bg-white text-[#1E3A8A] text-lg font-semibold rounded-lg hover:bg-gray-100 transition-colors">View Pricing</Link>
+            </div>
           </div>
         </div>
-      );
-    }
+      </section>
+      {/* How It Works */}
+      <section className="py-20 bg-gray-50"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="text-center mb-16"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-4">How It Works</h2><p className="text-xl text-gray-600 max-w-2xl mx-auto">Three simple steps from abstract to journal selection with tailored guidance</p></div><div className="grid md:grid-cols-3 gap-8 mb-12">{[{n:'1',t:'Input Your Abstract',d:'Paste your abstract and add keywords. Optionally set filters for APC, Impact Factor, review time, and more.',b:'Free & Premium'},{n:'2',t:'Get Ranked Matches',d:'Receive AI-powered journal recommendations ranked by fit, with detailed explanations for each match.',b:'Free: 3 matches | Premium: 8-15 matches'},{n:'3',t:'Tailor Your Manuscript',d:'Get journal-specific guidance: title suggestions, structure advice, cover letter tips, and reviewer concerns.',b:'Premium Only ⭐',hl:true}].map(s=><div key={s.n} className={`bg-white p-8 rounded-xl shadow-sm border ${s.hl?'border-2 border-[#14B8A6]':'border-gray-200'}`}><div className="w-12 h-12 bg-[#14B8A6] rounded-lg flex items-center justify-center mb-6"><span className="text-white font-bold text-xl">{s.n}</span></div><h3 className="text-xl font-bold text-[#1E3A8A] mb-3">{s.t}</h3><p className="text-gray-600 mb-4">{s.d}</p><span className="text-sm text-[#14B8A6] font-semibold">{s.b}</span></div>)}</div></div></section>
+      {/* Key Features */}
+      <section className="py-20 bg-white"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="text-center mb-16"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-4">Key Features</h2><p className="text-xl text-gray-600">Everything you need to find the perfect journal and prepare your submission</p></div><div className="grid md:grid-cols-2 gap-8"><div className="p-8 rounded-xl border-2 border-gray-200 hover:border-[#14B8A6] transition-all"><span className="w-12 h-12 text-[#14B8A6] mb-4 block"><I.Target/></span><h3 className="text-2xl font-bold text-[#1E3A8A] mb-3">AI-Powered Matching</h3><p className="text-gray-600">Advanced AI analyzes your abstract and keywords to recommend journals that perfectly match your research scope, methodology, and topic area.</p></div><div className="p-8 rounded-xl border-2 border-gray-200 hover:border-[#14B8A6] transition-all"><span className="w-12 h-12 text-[#14B8A6] mb-4 block"><I.Filter/></span><h3 className="text-2xl font-bold text-[#1E3A8A] mb-3">Advanced Filters</h3><p className="text-gray-600">Filter by APC cost, Impact Factor (Q1/Q2), review time, acceptance rate, indexing (Scopus, WoS), and Open Access status.</p></div><div className="p-8 rounded-xl bg-gradient-to-br from-[#14B8A6] to-[#0F9B8E] text-white relative overflow-hidden"><div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div><span className="w-12 h-12 mb-4 block"><I.FileEdit/></span><div className="flex items-center gap-2 mb-2"><h3 className="text-2xl font-bold">Tailor Your Manuscript</h3><span className="w-6 h-6"><I.Sparkles/></span></div><p className="mb-4">Our standout feature: Get journal-specific guidance including title optimization, structure recommendations, cover letter templates, and anticipated reviewer concerns.</p><span className="inline-block px-3 py-1 bg-white/20 rounded-full text-sm font-semibold">Premium Feature</span></div><div className="p-8 rounded-xl border-2 border-gray-200 hover:border-[#14B8A6] transition-all"><span className="w-12 h-12 text-[#14B8A6] mb-4 block"><I.Download/></span><h3 className="text-2xl font-bold text-[#1E3A8A] mb-3">Export Reports &amp; History</h3><p className="text-gray-600">Save your searches, export detailed DOCX reports with all recommendations and guidance, and track your submission journey over time.</p></div></div></div></section>
+      {/* Stats */}
+      <section className="py-20 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="grid md:grid-cols-3 gap-12"><div className="text-center"><span className="w-12 h-12 mx-auto mb-4 block"><I.TrendingUp/></span><div className="text-4xl font-bold mb-2">50%</div><p className="text-gray-100">Reduction in desk rejections</p></div><div className="text-center"><span className="w-12 h-12 mx-auto mb-4 block"><I.Clock/></span><div className="text-4xl font-bold mb-2">10x</div><p className="text-gray-100">Faster than manual search</p></div><div className="text-center"><span className="w-12 h-12 mx-auto mb-4 block"><I.Target/></span><div className="text-4xl font-bold mb-2">9,300+</div><p className="text-gray-100">Journals in our database</p></div></div></div></section>
+      {/* CTA */}
+      <section className="py-20 bg-white"><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-6">Ready to Find Your Perfect Journal?</h2><p className="text-xl text-gray-600 mb-8">Start with free recommendations or unlock premium tailoring guidance</p><div className="flex flex-col sm:flex-row gap-4 justify-center"><Link to="/dashboard" className="px-8 py-4 bg-[#14B8A6] text-white text-lg font-semibold rounded-lg hover:bg-[#0F9B8E] transition-colors">Start Free</Link><Link to="/pricing" className="px-8 py-4 bg-gray-100 text-[#1E3A8A] text-lg font-semibold rounded-lg hover:bg-gray-200 transition-colors">View Pricing Plans</Link></div></div></section>
+    </div>
+  );
+}
 
-    function App(){
-      const[page,setPage]=useState("hero");
-      const[view,setView]=useState("input");
-      const[abstract,setAbstract]=useState("");
-      const[keywords,setKeywords]=useState("");
-      const[articleType,setArticleType]=useState("Original Research");
-      const[discipline,setDiscipline]=useState("Any");
-      const[introConclusion,setIntroConclusion]=useState("");
-      const[methods,setMethods]=useState("");
-      const[resultsSummary,setResultsSummary]=useState("");
-      const[showAdvanced,setShowAdvanced]=useState(false);
-      const[indexing,setIndexing]=useState([]);
-      const[oaPref,setOaPref]=useState("Any");
-      const[apcFreeOnly,setApcFreeOnly]=useState(false);
-      const[maxAPC,setMaxAPC]=useState("");
-      const[minIF,setMinIF]=useState("");
-      const[targetImpact,setTargetImpact]=useState("Any");
-      const[numResults,setNumResults]=useState(3);
-      const[results,setResults]=useState(null);
-      const[error,setError]=useState("");
-      const[feedback,setFeedback]=useState({});
-      const[apiStatus,setApiStatus]=useState(null);
-      const[loadPhase,setLoadPhase]=useState(0);
-      const[downloading,setDownloading]=useState(false);
+/* ═══════════════════════════════════════════════════════════════
+   DASHBOARD — THE MAIN FUNCTIONAL PAGE
+   ═══════════════════════════════════════════════════════════════ */
+function DashboardPage(){
+  const [abstract,setAbstract]=useState('');
+  const [keywords,setKeywords]=useState('');
+  const [introConc,setIntroConc]=useState('');
+  const [methods,setMethods]=useState('');
+  const [resultsSummary,setResultsSummary]=useState('');
+  const [articleType,setArticleType]=useState('Original Research');
+  const [discipline,setDiscipline]=useState('Any');
+  const [oaPref,setOaPref]=useState('Any');
+  const [apcFree,setApcFree]=useState(false);
+  const [maxApc,setMaxApc]=useState('');
+  const [minIF,setMinIF]=useState('');
+  const [targetImpact,setTargetImpact]=useState('');
+  const [indexing,setIndexing]=useState([]);
+  const [numResults,setNumResults]=useState(3);
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState('');
+  const [results,setResults]=useState(null);
+  const [showFilters,setShowFilters]=useState(false);
+  const [showMore,setShowMore]=useState(false);
+  const [tailorJournal,setTailorJournal]=useState(null);
+  const [tailorData,setTailorData]=useState(null);
+  const [tailorLoading,setTailorLoading]=useState(false);
+  const resultsRef=useRef(null);
 
-      useEffect(()=>{fetch(API_BASE+"/health").then(r=>r.json()).then(d=>setApiStatus(d)).catch(()=>setApiStatus(null));},[]);
-      const toggleIdx=(opt)=>setIndexing(prev=>prev.includes(opt)?prev.filter(i=>i!==opt):[...prev,opt]);
-      const filledSections=[introConclusion,methods,resultsSummary].filter(s=>s.trim().length>0).length;
-      const rangePercent=((numResults-1)/9*100);
+  const ARTICLE_TYPES=["Original Research","Review Article","Systematic Review","Meta-Analysis","Case Report","Case Series","Short Communication / Brief Report","Letter to the Editor","Editorial","Commentary / Opinion","Perspective","Methods / Protocols","Technical Note","Book Review","Conference Paper","Data Paper / Data Article"];
+  const DISCIPLINES=["Any","Agricultural Sciences","Biochemistry & Molecular Biology","Biomedical Engineering","Chemistry","Clinical Medicine","Computer Science & AI","Earth & Environmental Sciences","Ecology & Evolution","Economics & Business","Education","Engineering","Epidemiology & Public Health","Food Science & Nutrition","Genetics & Genomics","Humanities & Social Sciences","Immunology","Law","Materials Science","Mathematics & Statistics","Microbiology","Neuroscience","Nursing & Health Professions","Pharmacology & Toxicology","Physics & Astronomy","Psychology & Psychiatry","Veterinary Science","Other"];
+  const INDEXING=["PubMed/MEDLINE","DOAJ","Scopus","Web of Science","Embase","PsycINFO","CINAHL","ERIC","EconLit","MathSciNet","zbMATH","Chemical Abstracts Service (CAS)","Inspec","GeoRef","AGRIS","Emerging Sources Citation Index (ESCI)","SCImago (SJR)"];
 
-      const handleSubmit=async()=>{
-        if(abstract.trim().length<50){setError("Abstract must be at least 50 characters.");return;}
-        setError("");setView("loading");setLoadPhase(0);
-        [500,1500,3000].forEach((ms,i)=>setTimeout(()=>setLoadPhase(i+1),ms));
-        try{
-          const body={abstract:abstract.trim(),keywords:keywords.trim(),introduction_conclusion:introConclusion.trim(),methods:methods.trim(),results_summary:resultsSummary.trim(),article_type:articleType,discipline,indexing_required:indexing,oa_preference:oaPref,apc_free_only:apcFreeOnly,max_apc:maxAPC?parseFloat(maxAPC):null,min_impact_factor:minIF?parseFloat(minIF):null,target_impact:targetImpact!=="Any"?targetImpact:null,num_results:numResults};
-          const resp=await fetch(API_BASE+"/recommend",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-          if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.detail||"API error: "+resp.status);}
-          const data=await resp.json();setResults(data);setView("results");
-        }catch(err){setError(err.message||"Failed to connect.");setView("input");}
-      };
-      const sendFeedback=async(rec,type)=>{
-        setFeedback(prev=>({...prev,[rec.rank]:type}));
-        try{await fetch(API_BASE+"/feedback",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({recommendation_id:rec.rank,journal_name:rec.journal_name,feedback:type})});}catch{}
-      };
-      const handleReset=()=>{setView("input");setResults(null);setFeedback({});};
+  async function handleSearch(e){
+    e.preventDefault();
+    if(abstract.length<50){setError('Abstract must be at least 50 characters.');return;}
+    setError('');setLoading(true);setResults(null);setTailorJournal(null);setTailorData(null);
+    try{
+      const body={abstract,keywords,introduction_conclusion:introConc,methods,results_summary:resultsSummary,article_type:articleType,discipline,indexing_required:indexing,oa_preference:oaPref,apc_free_only:apcFree,max_apc:maxApc?parseFloat(maxApc):null,min_impact_factor:minIF?parseFloat(minIF):null,target_impact:targetImpact||null,num_results:numResults,language_preference:'auto'};
+      const r=await fetch(API+'/recommend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      if(!r.ok){const d=await r.json().catch(()=>({detail:r.statusText}));throw new Error(d.detail||'Request failed');}
+      const data=await r.json();
+      setResults(data);
+      setTimeout(()=>resultsRef.current?.scrollIntoView({behavior:'smooth'}),100);
+    }catch(err){setError(err.message);}
+    finally{setLoading(false);}
+  }
 
-      const handleDownload=async()=>{
-        if(!results)return;
-        setDownloading(true);
-        try{
-          const body={
-            results:results,
-            abstract:abstract.trim(),
-            constraints:{discipline,article_type:articleType,oa_preference:oaPref,apc_free_only:apcFreeOnly,max_apc:maxAPC?parseFloat(maxAPC):null,min_impact_factor:minIF?parseFloat(minIF):null,target_impact:targetImpact!=="Any"?targetImpact:null,indexing_required:indexing,keywords:keywords.trim()},
-          };
-          const resp=await fetch(API_BASE+"/report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-          if(!resp.ok){const e=await resp.json().catch(()=>({}));throw new Error(e.detail||"Download failed");}
-          const blob=await resp.blob();
-          const url=URL.createObjectURL(blob);
-          const a=document.createElement("a");
-          a.href=url;a.download="journal_recommendations.docx";document.body.appendChild(a);a.click();
-          document.body.removeChild(a);URL.revokeObjectURL(url);
-        }catch(err){setError(err.message||"Report download failed.");}
-        finally{setDownloading(false);}
-      };
+  async function handleTailor(rec){
+    setTailorJournal(rec);setTailorData(null);setTailorLoading(true);
+    try{
+      const body={abstract,keywords,introduction_conclusion:introConc,methods,results_summary:resultsSummary,article_type:articleType,journal_id:rec.journal_id,journal_name:rec.journal_name};
+      const r=await fetch(API+'/tailor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      if(!r.ok){const d=await r.json().catch(()=>({detail:r.statusText}));throw new Error(d.detail||'Tailor failed');}
+      setTailorData(await r.json());
+    }catch(err){setTailorData({error:err.message});}
+    finally{setTailorLoading(false);}
+  }
 
-      // ══════ HERO ══════
-      if(page==="hero"){return(
-        <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 24px",textAlign:"center"}}>
-          <div style={{position:"absolute",top:"15%",left:"50%",transform:"translateX(-50%)",width:"500px",height:"300px",background:"radial-gradient(ellipse, var(--gold-glow) 0%, transparent 70%)",filter:"blur(60px)",pointerEvents:"none"}}/>
-          <div className="stagger-1" style={{fontFamily:"var(--mono)",fontSize:"11px",fontWeight:600,color:"var(--gold)",background:"var(--gold-soft)",padding:"6px 16px",borderRadius:"20px",border:"1px solid var(--gold-glow)",marginBottom:"28px",letterSpacing:"0.8px"}}>AI-POWERED RECOMMENDATIONS</div>
-          <h1 className="stagger-2" style={{fontFamily:"var(--display)",fontSize:"clamp(36px, 6vw, 58px)",fontWeight:600,lineHeight:1.15,marginBottom:"20px",maxWidth:"680px",letterSpacing:"-1px"}}>
-            Find Your Perfect{" "}<span style={{color:"var(--gold)",fontStyle:"italic"}}>Journal Match</span>
-          </h1>
-          <p className="stagger-3" style={{fontFamily:"var(--body)",fontSize:"17px",lineHeight:1.7,color:"var(--text-mid)",maxWidth:"520px",marginBottom:"36px"}}>
-            Paste your abstract. Our engine searches 9,000+ journals, filters by your constraints, and ranks matches using AI — in seconds.
-          </p>
-          <div className="stagger-4" style={{display:"flex",gap:"14px",flexWrap:"wrap",justifyContent:"center",marginBottom:"48px"}}>
-            <button onClick={()=>setPage("app")} style={{background:"var(--gold)",color:"var(--bg-deep)",border:"none",borderRadius:"10px",padding:"14px 32px",fontFamily:"var(--body)",fontSize:"15px",fontWeight:600,cursor:"pointer",transition:"all 0.2s",boxShadow:"0 4px 20px var(--gold-glow)"}}
-              onMouseEnter={e=>{e.target.style.background="var(--amber)";e.target.style.transform="translateY(-1px)";}}
-              onMouseLeave={e=>{e.target.style.background="var(--gold)";e.target.style.transform="translateY(0)";}}>
-              ◎ Find Matching Journals
-            </button>
-            <button onClick={()=>{const el=document.getElementById("how");if(el)el.scrollIntoView({behavior:"smooth"});}} style={{background:"transparent",color:"var(--text-mid)",border:"1.5px solid var(--border)",borderRadius:"10px",padding:"14px 28px",fontFamily:"var(--body)",fontSize:"15px",fontWeight:500,cursor:"pointer",transition:"all 0.2s"}}
-              onMouseEnter={e=>e.target.style.borderColor="var(--text-muted)"} onMouseLeave={e=>e.target.style.borderColor="var(--border)"}>
-              Ψ Learn How It Works
-            </button>
-          </div>
-          <div className="stagger-5" style={{display:"flex",gap:"48px",flexWrap:"wrap",justifyContent:"center"}}>
-            {[{v:"9,300+",l:"Journals indexed"},{v:"1–10",l:"Ranked matches"},{v:"Free",l:"Basic recommendations"}].map((s,i)=>(
-              <div key={i} style={{textAlign:"center"}}>
-                <div style={{fontFamily:"var(--display)",fontSize:"28px",fontWeight:700,color:"var(--gold)"}}>{s.v}</div>
-                <div style={{fontFamily:"var(--body)",fontSize:"13px",color:"var(--text-muted)",marginTop:"4px"}}>{s.l}</div>
+  async function handleReport(){
+    if(!results)return;
+    try{
+      const body={results,abstract,constraints:{article_type:articleType,discipline,oa_preference:oaPref}};
+      const r=await fetch(API+'/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      if(!r.ok)throw new Error('Report failed');
+      const blob=await r.blob();
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');a.href=url;a.download='journal_recommendations.docx';a.click();URL.revokeObjectURL(url);
+    }catch(err){alert('Report generation failed: '+err.message);}
+  }
+
+  const fitColor=(fit)=>{const f=(fit||'').toLowerCase();if(f.includes('high')||f.includes('excellent'))return'bg-emerald-100 text-emerald-800';if(f.includes('medium')||f.includes('good'))return'bg-amber-100 text-amber-800';return'bg-red-100 text-red-800';};
+
+  return(
+    <div className="bg-gray-50 min-h-screen py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 fade-in"><h1 className="text-4xl font-bold text-[#1E3A8A] mb-2">Find Your Perfect Journal</h1><p className="text-xl text-gray-600">Paste your abstract below and let our AI find the best matches</p></div>
+        <div className="grid lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2">
+            <form onSubmit={handleSearch} className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 fade-in">
+              <h2 className="text-2xl font-bold text-[#1E3A8A] mb-6">New Search</h2>
+              <div className="space-y-6">
+                {/* Abstract */}
+                <div><label className="block text-sm font-semibold text-gray-700 mb-2">Abstract *</label><textarea value={abstract} onChange={e=>setAbstract(e.target.value)} placeholder="Paste your research abstract here..." className="w-full h-48 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent resize-none"/><p className="text-sm text-gray-500 mt-1">Minimum 50 characters ({abstract.length} entered)</p></div>
+                {/* Keywords */}
+                <div><label className="block text-sm font-semibold text-gray-700 mb-2">Keywords</label><input type="text" value={keywords} onChange={e=>setKeywords(e.target.value)} placeholder="e.g., machine learning, neural networks, deep learning" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent"/><p className="text-sm text-gray-500 mt-1">Separate keywords with commas</p></div>
+                {/* Extra sections toggle */}
+                <button type="button" onClick={()=>setShowMore(!showMore)} className="text-sm text-[#14B8A6] font-semibold flex items-center gap-1 hover:underline">{showMore?'▾ Hide':'▸ Show'} additional manuscript sections (optional)</button>
+                {showMore&&<div className="space-y-4 pl-4 border-l-2 border-[#14B8A6]/20">
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Introduction / Conclusion</label><textarea value={introConc} onChange={e=>setIntroConc(e.target.value)} placeholder="Paste the last paragraph of your Introduction and/or Conclusion..." className="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent resize-none text-sm"/></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Methods</label><textarea value={methods} onChange={e=>setMethods(e.target.value)} placeholder="Paste your Materials & Methods section..." className="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent resize-none text-sm"/></div>
+                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Results Summary</label><textarea value={resultsSummary} onChange={e=>setResultsSummary(e.target.value)} placeholder="Paste key results or findings..." className="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent resize-none text-sm"/></div>
+                </div>}
+                {/* Filters */}
+                <div className="border-t pt-6">
+                  <button type="button" onClick={()=>setShowFilters(!showFilters)} className="flex items-center gap-2 mb-4"><span className="w-5 h-5 text-gray-400"><I.Filter/></span><h3 className="font-semibold text-gray-700">Advanced Filters</h3><span className="w-4 h-4 text-gray-400"><I.ChevronDown/></span></button>
+                  {showFilters&&<div className="grid md:grid-cols-2 gap-4 fade-in">
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Article Type</label><select value={articleType} onChange={e=>setArticleType(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{ARTICLE_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Discipline</label><select value={discipline} onChange={e=>setDiscipline(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{DISCIPLINES.map(d=><option key={d} value={d}>{d}</option>)}</select></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Open Access</label><select value={oaPref} onChange={e=>setOaPref(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option>Any</option><option>Open Access Only</option><option>Hybrid</option></select></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Impact Target</label><select value={targetImpact} onChange={e=>setTargetImpact(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="">Any</option><option>Q1 (High)</option><option>Q1-Q2</option><option>Q2-Q3</option><option>Q3-Q4</option></select></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Max APC (USD)</label><input type="number" value={maxApc} onChange={e=>setMaxApc(e.target.value)} placeholder="No limit" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"/></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Min Impact Factor</label><input type="number" step="0.1" value={minIF} onChange={e=>setMinIF(e.target.value)} placeholder="No minimum" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"/></div>
+                    <div className="flex items-center gap-2 col-span-2"><input type="checkbox" checked={apcFree} onChange={e=>setApcFree(e.target.checked)} className="w-4 h-4 text-[#14B8A6] rounded"/><label className="text-sm text-gray-700">Free to publish only (no APC)</label></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Number of Results</label><input type="range" min="1" max="10" value={numResults} onChange={e=>setNumResults(parseInt(e.target.value))} className="w-full accent-[#14B8A6]"/><span className="text-sm text-gray-600">{numResults} journal{numResults>1?'s':''}</span></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Required Indexing</label><div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">{INDEXING.map(ix=><button key={ix} type="button" onClick={()=>setIndexing(prev=>prev.includes(ix)?prev.filter(i=>i!==ix):[...prev,ix])} className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${indexing.includes(ix)?'bg-[#14B8A6] text-white border-[#14B8A6]':'border-gray-300 text-gray-600 hover:border-[#14B8A6]'}`}>{ix}</button>)}</div></div>
+                  </div>}
+                </div>
+                {error&&<div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
+                <button type="submit" disabled={loading} className="w-full py-4 bg-[#14B8A6] text-white font-semibold rounded-lg hover:bg-[#0F9B8E] transition-colors flex items-center justify-center gap-2 disabled:opacity-60">
+                  {loading?<><span className="w-5 h-5"><I.Loader/></span>Analyzing...</>:<><span className="w-5 h-5"><I.Search/></span>Find Matching Journals</>}
+                </button>
               </div>
-            ))}
-          </div>
-          <div id="how" style={{marginTop:"80px",maxWidth:"640px",width:"100%"}}>
-            <h2 style={{fontFamily:"var(--display)",fontSize:"28px",fontWeight:600,marginBottom:"32px",letterSpacing:"-0.5px"}}>How it works</h2>
-            <div style={{display:"flex",flexDirection:"column",gap:"20px"}}>
-              {[{n:"01",t:"Paste your abstract",d:"Plus optional sections: introduction, methods, and key results for deeper matching."},{n:"02",t:"Set your constraints",d:"Discipline, indexing, OA preference, APC budget, and minimum impact factor."},{n:"03",t:"Get ranked results",d:"Semantic search across 9,300+ journals, filtered, then re-ranked by AI with detailed explanations."}].map((step,i)=>(
-                <div key={i} style={{display:"flex",gap:"18px",alignItems:"flex-start",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:"12px",padding:"20px 22px"}}>
-                  <span style={{fontFamily:"var(--mono)",fontSize:"12px",fontWeight:600,color:"var(--gold)",background:"var(--gold-soft)",padding:"4px 10px",borderRadius:"6px",flexShrink:0}}>{step.n}</span>
-                  <div>
-                    <div style={{fontFamily:"var(--display)",fontSize:"17px",fontWeight:600,color:"var(--text)",marginBottom:"4px"}}>{step.t}</div>
-                    <div style={{fontFamily:"var(--body)",fontSize:"13px",color:"var(--text-muted)",lineHeight:1.6}}>{step.d}</div>
+            </form>
+
+            {/* RESULTS */}
+            <div ref={resultsRef}>
+            {results&&<div className="mt-8 space-y-6 fade-in">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-[#1E3A8A]">Results</h2>
+                <button onClick={handleReport} className="px-4 py-2 bg-[#1E3A8A] text-white text-sm font-medium rounded-lg hover:bg-[#1E3A8A]/90 transition-colors flex items-center gap-2"><span className="w-4 h-4"><I.Download/></span>Download Report</button>
+              </div>
+              {results.constraints_relaxed&&<div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">⚠️ No journals matched all your constraints. Showing best matches without filters.</div>}
+              <p className="text-sm text-gray-600">{results.analysis_summary}</p>
+              {results.recommendations?.length===0&&<div className="p-8 bg-white rounded-xl border border-gray-200 text-center"><p className="text-gray-500">No matching journals found. Try broadening your filters or providing more detail in your abstract.</p></div>}
+              {results.recommendations?.map((rec,i)=>(
+                <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-[#1E3A8A] rounded-lg flex items-center justify-center text-white font-bold">{rec.rank}</div>
+                      <div>
+                        <h3 className="text-lg font-bold text-[#1E3A8A]">{rec.journal_name}</h3>
+                        <p className="text-sm text-gray-500">{rec.publisher}</p>
+                      </div>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${fitColor(rec.fit)}`}>{rec.fit}</span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-sm">
+                    <div><span className="text-gray-500">OA Model:</span> <span className="font-medium">{rec.oa_model||'N/A'}</span></div>
+                    <div><span className="text-gray-500">APC:</span> <span className="font-medium">{rec.apc_estimate||'N/A'}</span></div>
+                    <div><span className="text-gray-500">IF:</span> <span className="font-medium">{rec.impact_factor||rec.impact_proxy||'N/A'}</span></div>
+                    <div><span className="text-gray-500">Review:</span> <span className="font-medium">{rec.review_time||'N/A'}</span></div>
+                  </div>
+                  {rec.reasons?.length>0&&<div className="mb-3"><p className="text-sm font-medium text-gray-700 mb-1">Why this journal:</p><ul className="space-y-1">{rec.reasons.map((r,j)=><li key={j} className="text-sm text-gray-600 flex items-start gap-2"><span className="text-[#14B8A6] mt-0.5 flex-shrink-0">✓</span>{r}</li>)}</ul></div>}
+                  {rec.concern&&<p className="text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded mb-3">⚠️ {rec.concern}</p>}
+                  <div className="flex gap-2 mt-3">
+                    <button onClick={()=>handleTailor(rec)} className="px-4 py-2 bg-[#14B8A6] text-white text-sm font-medium rounded-lg hover:bg-[#0F9B8E] transition-colors flex items-center gap-1"><span className="w-4 h-4"><I.FileEdit/></span>Tailor Manuscript</button>
+                    {rec.homepage&&<a href={rec.homepage} target="_blank" rel="noopener noreferrer" className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1"><span className="w-4 h-4"><I.ExternalLink/></span>Journal Homepage</a>}
                   </div>
                 </div>
               ))}
+            </div>}
             </div>
           </div>
-          <div style={{marginTop:"48px",fontFamily:"var(--mono)",fontSize:"11px",color:apiStatus?"var(--green)":"var(--text-dim)",display:"flex",alignItems:"center",gap:"6px"}}>
-            <span style={{width:6,height:6,borderRadius:"50%",background:apiStatus?"var(--green)":"var(--text-dim)"}}/>
-            {apiStatus?(apiStatus.vector_store&&apiStatus.vector_store.total_journals?apiStatus.vector_store.total_journals.toLocaleString():"?")+" journals loaded"+(apiStatus.llm_enabled?" · LLM active":""):"Backend not connected — start with python app.py --data-dir data"}
-          </div>
-        </div>
-      );}
 
-      // ══════ APP ══════
-      return(
-        <div style={{minHeight:"100vh"}}>
-          <header style={{borderBottom:"1px solid var(--border)",background:"var(--bg-mid)ee",padding:"14px 32px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:10,backdropFilter:"blur(12px)"}}>
-            <div style={{display:"flex",alignItems:"baseline",gap:"12px"}}>
-              <button onClick={()=>setPage("hero")} style={{background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"var(--display)",fontSize:"20px",fontWeight:600,color:"var(--gold)",letterSpacing:"-0.5px"}}>Journal Recommender</button>
-              <span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)"}}>v1.1</span>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:"16px"}}>
-              {apiStatus&&<span style={{fontFamily:"var(--mono)",fontSize:"10px",color:apiStatus.status==="ok"?"var(--green)":"var(--yellow)",display:"flex",alignItems:"center",gap:"5px"}}><span style={{width:5,height:5,borderRadius:"50%",background:apiStatus.status==="ok"?"var(--green)":"var(--yellow)"}}/>{apiStatus.vector_store&&apiStatus.vector_store.total_journals?apiStatus.vector_store.total_journals.toLocaleString():"?"} journals{apiStatus.llm_enabled?" · LLM":""}</span>}
-              {view==="results"&&<button onClick={handleReset} style={{background:"transparent",border:"1px solid var(--border)",borderRadius:"6px",padding:"5px 14px",cursor:"pointer",fontFamily:"var(--body)",fontSize:"12px",color:"var(--text-muted)",transition:"border-color 0.15s"}} onMouseEnter={e=>e.target.style.borderColor="var(--text-dim)"} onMouseLeave={e=>e.target.style.borderColor="var(--border)"}>← New search</button>}
-            </div>
-          </header>
-
-          <div style={{maxWidth:780,margin:"0 auto",padding:"36px 24px 60px"}}>
-            {error&&<div style={{background:"var(--red-bg)",border:"1px solid var(--red)25",borderRadius:"10px",padding:"12px 16px",marginBottom:"20px",fontFamily:"var(--body)",fontSize:"13px",color:"var(--red)"}}>{error}</div>}
-
-            {/* INPUT */}
-            {view==="input"&&(<div>
-              {!apiStatus&&<div style={{background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:"10px",padding:"14px 18px",marginBottom:"24px",fontFamily:"var(--body)",fontSize:"13px",color:"var(--yellow)",lineHeight:1.6}}><strong>Backend not connected.</strong> Start with <code style={{fontFamily:"var(--mono)",fontSize:"12px",background:"var(--bg-card)",padding:"2px 6px",borderRadius:"4px"}}>python app.py --data-dir data</code></div>}
-
-              <div className="stagger-1">
-                <SectionHeader num="01" title="Your Abstract"/>
-                <textarea value={abstract} onChange={e=>setAbstract(e.target.value)} placeholder="Paste your manuscript abstract here. The more detail, the better the match..." style={{width:"100%",minHeight:180,background:"var(--bg-input)",border:"1.5px solid var(--border)",borderRadius:"12px",fontFamily:"var(--body)",fontSize:"14px",lineHeight:1.8,color:"var(--text)",padding:"18px 20px",resize:"vertical"}}/>
-                <div style={{fontFamily:"var(--mono)",fontSize:"11px",color:abstract.length>=50?"var(--green)":"var(--text-dim)",marginTop:"6px",textAlign:"right"}}>{abstract.length} chars {abstract.length>=50?"✓":"· min 50"}</div>
-              </div>
-
-              <div className="stagger-2" style={{marginTop:"28px"}}>
-                <SectionHeader num="02" title="Keywords" optional/>
-                <TInput value={keywords} onChange={e=>setKeywords(e.target.value)} placeholder="e.g., machine learning, drug discovery, cohort study"/>
-              </div>
-
-              <div className="stagger-3" style={{marginTop:"28px"}}>
-                <button onClick={()=>setShowAdvanced(!showAdvanced)} style={{background:"none",border:"none",cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:"10px",width:"100%"}}>
-                  <span style={{fontFamily:"var(--mono)",fontSize:"11px",fontWeight:600,color:"var(--gold)",background:"var(--gold-soft)",padding:"2px 8px",borderRadius:"4px"}}>03</span>
-                  <span style={{fontFamily:"var(--display)",fontSize:"20px",fontWeight:600,color:"var(--text)"}}>Strengthen your match</span>
-                  <span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)"}}>optional</span>
-                  {filledSections>0&&<span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--green)",background:"var(--green-bg)",padding:"2px 8px",borderRadius:"10px",border:"1px solid var(--green-border)"}}>{filledSections} added</span>}
-                  <span style={{marginLeft:"auto",fontFamily:"var(--mono)",fontSize:"14px",color:"var(--text-dim)",display:"inline-block",transform:showAdvanced?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.2s"}}>›</span>
-                </button>
-                {showAdvanced&&(
-                  <div style={{marginTop:"16px",padding:"22px",background:"var(--bg-card)",borderRadius:"14px",border:"1px solid var(--border)",display:"flex",flexDirection:"column",gap:"20px",animation:"fadeUp 0.25s ease"}}>
-                    <div style={{fontFamily:"var(--body)",fontSize:"12.5px",color:"var(--text-muted)",lineHeight:1.6}}>Additional sections improve matching accuracy. Each is independent — add whichever you have.</div>
-                    {[
-                      {label:"Introduction / Conclusion",hint:"Last paragraph of your Intro and/or Conclusion",value:introConclusion,set:setIntroConclusion,ph:"Paste the final paragraph of your Introduction and/or Conclusion..."},
-                      {label:"Materials & Methods",hint:"Helps match methodology-focused journals",value:methods,set:setMethods,ph:"Paste your Materials & Methods section..."},
-                      {label:"Key Results / Findings",hint:"Helps match journals publishing similar evidence",value:resultsSummary,set:setResultsSummary,ph:"Paste key results or findings..."},
-                    ].map((f,i)=>(
-                      <div key={i}>
-                        <FieldLabel label={f.label}/>
-                        <div style={{fontFamily:"var(--body)",fontSize:"11px",color:"var(--text-dim)",marginBottom:"6px"}}>{f.hint}</div>
-                        <textarea value={f.value} onChange={e=>f.set(e.target.value)} placeholder={f.ph} style={{width:"100%",minHeight:80,background:"var(--bg-input)",border:"1.5px solid var(--border)",borderRadius:"10px",fontFamily:"var(--body)",fontSize:"13px",lineHeight:1.7,color:"var(--text)",padding:"12px 14px",resize:"vertical"}}/>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="stagger-4" style={{marginTop:"28px"}}>
-                <SectionHeader num="04" title="Constraints & Preferences"/>
-                <div style={{background:"var(--bg-card)",borderRadius:"14px",padding:"22px 24px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:"20px",border:"1px solid var(--border)"}}>
-                  <div><FieldLabel label="Article Type"/><Sel value={articleType} onChange={e=>setArticleType(e.target.value)} options={ARTICLE_TYPES}/></div>
-                  <div><FieldLabel label="Discipline"/><Sel value={discipline} onChange={e=>setDiscipline(e.target.value)} options={DISCIPLINES}/></div>
-                  <div><FieldLabel label="Open Access"/><Sel value={oaPref} onChange={e=>setOaPref(e.target.value)} options={OA_OPTIONS}/></div>
-                  <div><FieldLabel label="Target Impact"/><Sel value={targetImpact} onChange={e=>setTargetImpact(e.target.value)} options={IMPACT_OPTIONS}/></div>
-                  <div><FieldLabel label="Max APC (USD)"/><TInput type="number" value={maxAPC} onChange={e=>setMaxAPC(e.target.value)} placeholder="No limit" min="0"/></div>
-                  <div><FieldLabel label="Min Impact Factor"/><TInput type="number" value={minIF} onChange={e=>setMinIF(e.target.value)} placeholder="No minimum" min="0" step="0.1"/></div>
-                  <div style={{gridColumn:"1 / -1"}}>
-                    <button onClick={()=>setApcFreeOnly(!apcFreeOnly)} style={{display:"flex",alignItems:"center",gap:"12px",background:apcFreeOnly?"var(--green-bg)":"transparent",border:"1.5px solid "+(apcFreeOnly?"var(--green-border)":"var(--border)"),borderRadius:"10px",padding:"12px 18px",cursor:"pointer",width:"100%",transition:"all 0.15s",textAlign:"left"}}>
-                      <span style={{width:20,height:20,borderRadius:"5px",flexShrink:0,border:"2px solid "+(apcFreeOnly?"var(--green)":"var(--text-dim)"),background:apcFreeOnly?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s"}}>
-                        {apcFreeOnly&&<span style={{color:"var(--bg-deep)",fontSize:"12px",fontWeight:800}}>✓</span>}
-                      </span>
-                      <div>
-                        <div style={{fontFamily:"var(--body)",fontSize:"13px",fontWeight:600,color:apcFreeOnly?"var(--green)":"var(--text-mid)"}}>Free to publish only</div>
-                        <div style={{fontFamily:"var(--body)",fontSize:"11px",color:"var(--text-dim)",marginTop:"2px"}}>Excludes mandatory APCs. Hybrid journals still included (subscription route).</div>
-                      </div>
-                    </button>
-                  </div>
-                  <div style={{gridColumn:"1 / -1"}}><FieldLabel label="Required Indexing"/><div style={{display:"flex",flexWrap:"wrap",gap:"8px"}}>{INDEXING_OPTIONS.map(opt=><Pill key={opt} label={opt} active={indexing.includes(opt)} onClick={()=>toggleIdx(opt)}/>)}</div></div>
-                  <div style={{gridColumn:"1 / -1"}}><FieldLabel label={"Results: "+numResults}/><div style={{display:"flex",alignItems:"center",gap:"12px"}}><span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)"}}>1</span><input type="range" min={1} max={10} value={numResults} onChange={e=>setNumResults(parseInt(e.target.value))} style={{flex:1,background:"linear-gradient(to right, var(--gold) 0%, var(--gold) "+rangePercent+"%, var(--border) "+rangePercent+"%, var(--border) 100%)"}}/><span style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)"}}>10</span></div></div>
-                </div>
-              </div>
-
-              <div className="stagger-5">
-                <button onClick={handleSubmit} style={{width:"100%",marginTop:"32px",padding:"16px",background:"var(--gold)",border:"none",borderRadius:"12px",color:"var(--bg-deep)",fontFamily:"var(--body)",fontSize:"15px",fontWeight:600,cursor:"pointer",transition:"all 0.2s",boxShadow:"0 4px 20px var(--gold-glow)"}}
-                  onMouseEnter={e=>{e.target.style.background="var(--amber)";e.target.style.transform="translateY(-1px)";}}
-                  onMouseLeave={e=>{e.target.style.background="var(--gold)";e.target.style.transform="translateY(0)";}}>
-                  ◎ Find Matching Journals
-                </button>
-                <p style={{fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)",textAlign:"center",marginTop:"12px",letterSpacing:"0.3px"}}>Advisory tool · Results require independent verification</p>
-              </div>
-            </div>)}
-
-            {/* LOADING */}
-            {view==="loading"&&(
-              <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:400,gap:"32px"}}>
-                <div style={{width:56,height:56,borderRadius:"50%",border:"3px solid var(--border)",borderTopColor:"var(--gold)",animation:"spin 0.9s linear infinite"}}/>
-                <div style={{textAlign:"center"}}>
-                  <div style={{fontFamily:"var(--display)",fontSize:"20px",color:"var(--text)",marginBottom:"16px"}}>Analyzing your manuscript</div>
-                  {["Embedding abstract","Searching journal database","Filtering by constraints","Ranking & generating explanations"].map((phase,i)=>(
-                    <div key={i} style={{fontFamily:"var(--body)",fontSize:"13px",color:loadPhase>i?"var(--green)":loadPhase===i?"var(--gold)":"var(--text-dim)",display:"flex",alignItems:"center",gap:"10px",justifyContent:"center",marginBottom:"8px",transition:"color 0.3s"}}>
-                      <span style={{fontFamily:"var(--mono)",fontSize:"11px",width:"14px",textAlign:"center"}}>{loadPhase>i?"✓":loadPhase===i?"›":"·"}</span>{phase}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* RESULTS */}
-            {view==="results"&&results&&(<div>
-              {results.timing&&(
-                <div style={{display:"flex",gap:"16px",marginBottom:"20px",fontFamily:"var(--mono)",fontSize:"10px",color:"var(--text-dim)",flexWrap:"wrap"}}>
-                  {results.timing.embed_ms!=null&&<span>embed {results.timing.embed_ms}ms</span>}
-                  {results.timing.search_ms!=null&&<span>search {results.timing.search_ms}ms</span>}
-                  {results.timing.filter_ms!=null&&<span>filter {results.timing.filter_ms}ms</span>}
-                  {results.timing.rerank_ms!=null&&<span>rerank {results.timing.rerank_ms}ms</span>}
-                  <span style={{marginLeft:"auto"}}>{results.candidates_searched} → {results.candidates_after_filter} → {results.recommendations?results.recommendations.length:0}</span>
-                </div>
-              )}
-              {results.constraints_relaxed&&<div style={{background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:"10px",padding:"12px 16px",marginBottom:"18px",fontFamily:"var(--body)",fontSize:"13px",color:"var(--yellow)",lineHeight:1.6}}><strong>Filters relaxed:</strong> No journals matched all constraints. Showing best matches without filters.</div>}
-              {results.analysis_summary&&(
-                <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:"12px",padding:"20px 24px",marginBottom:"24px",fontFamily:"var(--body)",fontSize:"14px",lineHeight:1.75,color:"var(--text-mid)"}}>
-                  <span style={{fontFamily:"var(--mono)",fontSize:"10px",fontWeight:600,color:"var(--gold-dim)",letterSpacing:"0.5px"}}>ANALYSIS · </span>{results.analysis_summary}
-                </div>
-              )}
-              {results.recommendations&&results.recommendations.map((rec,idx)=><JournalCard key={idx} rec={rec} index={idx} fb={feedback[rec.rank]} onFb={type=>sendFeedback(rec,type)}/>)}
-              {(!results.recommendations||results.recommendations.length===0)&&<div style={{textAlign:"center",padding:"60px 24px",fontFamily:"var(--body)",fontSize:"15px",color:"var(--text-muted)"}}>No journals matched your constraints. Try relaxing some filters.</div>}
-
-              {/* Download Report */}
-              {results.recommendations&&results.recommendations.length>0&&(
-                <div style={{textAlign:"center",marginTop:"24px",marginBottom:"8px"}}>
-                  <button onClick={handleDownload} disabled={downloading} style={{
-                    background:"transparent",border:"1.5px solid var(--gold)",borderRadius:"10px",
-                    padding:"12px 28px",cursor:downloading?"wait":"pointer",
-                    fontFamily:"var(--body)",fontSize:"14px",fontWeight:600,color:"var(--gold)",
-                    transition:"all 0.2s",opacity:downloading?0.6:1,
-                    display:"inline-flex",alignItems:"center",gap:"8px",
-                  }}
-                  onMouseEnter={e=>{if(!downloading){e.target.style.background="var(--gold-soft)";e.target.style.transform="translateY(-1px)";}}}
-                  onMouseLeave={e=>{e.target.style.background="transparent";e.target.style.transform="translateY(0)";}}>
-                    <span style={{fontSize:"16px"}}>{downloading?"⏳":"📄"}</span>
-                    {downloading?"Generating report...":"Download Report (.docx)"}
-                  </button>
-                </div>
-              )}
-
-              <div style={{marginTop:"28px",padding:"14px 18px",background:"var(--yellow-bg)",border:"1px solid var(--yellow-border)",borderRadius:"10px",fontFamily:"var(--body)",fontSize:"12px",color:"var(--yellow)",lineHeight:1.7}}><strong>Disclaimer:</strong> Recommendations are AI-generated and should be verified. Always confirm scope, APC, and submission guidelines with the journal directly.</div>
-            </div>)}
+          {/* Sidebar */}
+          <div className="space-y-6 fade-in">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"><h3 className="font-bold text-[#1E3A8A] mb-4">Quick Tips</h3><ul className="space-y-3">{['Include your main findings in the abstract','Add 3-5 specific keywords for better matches','Use technical terminology from your field','Add Methods & Results sections for precision'].map((t,i)=><li key={i} className="flex items-start gap-2"><span className="w-5 h-5 text-[#14B8A6] flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-sm text-gray-600">{t}</span></li>)}</ul></div>
+            <div className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-xl shadow-sm p-6 text-white"><span className="w-8 h-8 mb-3 block"><I.Sparkles/></span><h3 className="font-bold text-lg mb-2">Powered by AI</h3><p className="text-sm text-gray-100 mb-3">Semantic embedding search + LLM re-ranking across 9,300+ journals from all major publishers.</p><p className="text-xs text-gray-200">Neutral &amp; cross-publisher — no bias.</p></div>
           </div>
         </div>
-      );
-    }
-    ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
-  </script>
+      </div>
+
+      {/* TAILOR MODAL */}
+      {tailorJournal&&<div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-12 pb-12 px-4 overflow-y-auto" onClick={()=>{setTailorJournal(null);setTailorData(null);}}>
+        <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-8 relative" onClick={e=>e.stopPropagation()}>
+          <button onClick={()=>{setTailorJournal(null);setTailorData(null);}} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><span className="w-5 h-5 text-gray-400"><I.X/></span></button>
+          <h2 className="text-2xl font-bold text-[#1E3A8A] mb-1">Tailor Your Manuscript</h2>
+          <p className="text-gray-500 mb-6">For: <strong>{tailorJournal.journal_name}</strong></p>
+          {tailorLoading&&<div className="flex flex-col items-center py-12 gap-3"><span className="w-8 h-8 text-[#14B8A6]"><I.Loader/></span><p className="text-gray-500">Analyzing your manuscript against this journal's scope, topics, and recent publications...</p></div>}
+          {tailorData&&tailorData.error&&<div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">{tailorData.error}</div>}
+          {tailorData&&!tailorData.error&&<div className="space-y-5 max-h-[60vh] overflow-y-auto pr-2">
+            {tailorData.overall_fit_assessment&&<div className="p-4 bg-[#14B8A6]/5 border border-[#14B8A6]/20 rounded-lg"><h4 className="font-bold text-[#1E3A8A] mb-1">Overall Fit</h4><p className="text-sm text-gray-700">{tailorData.overall_fit_assessment}</p></div>}
+            {tailorData.framing&&<div><h4 className="font-bold text-[#1E3A8A] mb-2">Framing</h4><p className="text-sm text-gray-600 mb-1"><strong>Current:</strong> {tailorData.framing.current}</p><p className="text-sm text-gray-600 mb-1"><strong>Suggested:</strong> {tailorData.framing.suggested}</p>{tailorData.framing.opening_angle&&<p className="text-sm text-gray-600"><strong>Opening angle:</strong> {tailorData.framing.opening_angle}</p>}</div>}
+            {tailorData.title_suggestions?.length>0&&<div><h4 className="font-bold text-[#1E3A8A] mb-2">Title Suggestions</h4>{tailorData.title_suggestions.map((t,i)=><p key={i} className="text-sm text-gray-600 mb-1">• {t}</p>)}</div>}
+            {tailorData.keywords_to_add?.length>0&&<div><h4 className="font-bold text-[#1E3A8A] mb-2">Keywords to Add</h4><div className="flex flex-wrap gap-1">{tailorData.keywords_to_add.map((k,i)=><span key={i} className="px-2 py-1 bg-emerald-50 text-emerald-700 text-xs rounded-full">{k}</span>)}</div></div>}
+            {tailorData.keywords_to_avoid?.length>0&&<div><h4 className="font-bold text-[#1E3A8A] mb-2">Keywords to Avoid</h4><div className="flex flex-wrap gap-1">{tailorData.keywords_to_avoid.map((k,i)=><span key={i} className="px-2 py-1 bg-red-50 text-red-700 text-xs rounded-full">{k}</span>)}</div></div>}
+            {tailorData.discussion_angles?.length>0&&<div><h4 className="font-bold text-[#1E3A8A] mb-2">Discussion Angles</h4>{tailorData.discussion_angles.map((a,i)=><p key={i} className="text-sm text-gray-600 mb-1">• {a}</p>)}</div>}
+            {tailorData.reviewer_concerns?.length>0&&<div><h4 className="font-bold text-[#1E3A8A] mb-2">Anticipated Reviewer Concerns</h4>{tailorData.reviewer_concerns.map((c,i)=><p key={i} className="text-sm text-gray-600 mb-1">⚠️ {c}</p>)}</div>}
+            {tailorData.cover_letter_tips?.length>0&&<div><h4 className="font-bold text-[#1E3A8A] mb-2">Cover Letter Tips</h4>{tailorData.cover_letter_tips.map((t,i)=><p key={i} className="text-sm text-gray-600 mb-1">✉️ {t}</p>)}</div>}
+            {tailorData.references_strategy&&<div><h4 className="font-bold text-[#1E3A8A] mb-2">References Strategy</h4><p className="text-sm text-gray-600">{tailorData.references_strategy}</p></div>}
+          </div>}
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FEATURES PAGE
+   ═══════════════════════════════════════════════════════════════ */
+function FeaturesPage(){
+  return(
+    <div className="bg-white">
+      <section className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white py-20"><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center"><h1 className="text-5xl font-bold mb-6">Powerful Features for Smarter Publishing</h1><p className="text-xl text-gray-100">Everything you need to find the perfect journal and prepare your manuscript for success</p></div></section>
+      <section className="py-20"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="grid md:grid-cols-2 gap-12">{[{icon:<I.Target/>,t:'AI-Powered Journal Matching',d:'Our advanced AI analyzes your abstract, keywords, and research methodology to find journals that truly fit your work.',items:['Semantic understanding of research content','Topic similarity scoring with explanations','Ranked results from 9,300+ journals']},{icon:<I.Filter/>,t:'Advanced Filtering System',d:'Narrow down results with comprehensive filters to find journals that meet your specific requirements.',items:['APC cost range (free to high-fee journals)','Impact Factor and Quartile (Q1/Q2/Q3/Q4)','Review time, acceptance rate, indexing status','Open Access vs. subscription journals']},{icon:<I.Download/>,t:'Export Reports & Documentation',d:'Save your research and share detailed reports with co-authors or advisors.',items:['Export to DOCX with full recommendations','Include tailoring guidance in reports','Share reports with team members']},{icon:<I.Clock/>,t:'Multi-Language Support',d:'Submit abstracts in 9 languages — our system detects the language and boosts journals that publish in your language.',items:['English, Spanish, French, German, Portuguese','Chinese, Japanese, Korean, Arabic','Automatic language detection']}].map((f,i)=><div key={i} className="flex gap-6"><div className="flex-shrink-0"><div className="w-16 h-16 bg-[#14B8A6] rounded-xl flex items-center justify-center text-white"><span className="w-8 h-8">{f.icon}</span></div></div><div><h3 className="text-2xl font-bold text-[#1E3A8A] mb-3">{f.t}</h3><p className="text-gray-600 mb-4">{f.d}</p><ul className="space-y-2">{f.items.map((it,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 text-[#14B8A6] flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-gray-600">{it}</span></li>)}</ul></div></div>)}</div></div></section>
+      <section className="py-20 bg-gradient-to-br from-[#14B8A6] to-[#0F9B8E] text-white"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="text-center mb-12"><span className="w-12 h-12 mx-auto mb-4 block"><I.Sparkles/></span><h2 className="text-4xl font-bold mb-4">Tailor Your Manuscript</h2><p className="text-xl text-gray-100 max-w-2xl mx-auto">Our standout premium feature: journal-specific guidance to maximize your acceptance chances</p></div></div></section>
+      <section className="py-20"><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-6">Ready to Experience All Features?</h2><p className="text-xl text-gray-600 mb-8">Start with our free tier or unlock premium features</p><div className="flex flex-col sm:flex-row gap-4 justify-center"><Link to="/dashboard" className="px-8 py-3 bg-[#14B8A6] text-white font-semibold rounded-lg hover:bg-[#0F9B8E] transition-colors">Start Free</Link><Link to="/pricing" className="px-8 py-3 bg-gray-100 text-[#1E3A8A] font-semibold rounded-lg hover:bg-gray-200 transition-colors">View Pricing</Link></div></div></section>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ABOUT PAGE
+   ═══════════════════════════════════════════════════════════════ */
+function AboutPage(){
+  return(
+    <div className="bg-white">
+      <section className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white py-20"><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center"><h1 className="text-5xl font-bold mb-6">Helping Researchers Publish Faster and Smarter</h1><p className="text-xl text-gray-100">We're on a mission to reduce publication stress through intelligent journal matching and actionable manuscript guidance</p></div></section>
+      <section className="py-20"><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-8 text-center">Our Story</h2><div className="prose prose-lg max-w-none"><p className="text-gray-600 text-lg leading-relaxed mb-6">PubFit was born from frustration. As active researchers, we (Irfan and Luca) spent countless hours manually searching for the right journals, only to face desk rejections because our manuscripts weren't tailored to the journal's specific requirements and scope.</p><p className="text-gray-600 text-lg leading-relaxed mb-6">We knew there had to be a better way. Existing tools were either tied to specific publishers (creating biased recommendations) or only provided basic matching without any guidance on how to actually prepare the manuscript for submission.</p><p className="text-gray-600 text-lg leading-relaxed">So we built PubFit: a neutral, cross-publisher AI tool that not only matches your research with the right journals but also gives you the practical, journal-specific guidance you need to maximize your chances of acceptance.</p></div></div></section>
+      <section className="py-20 bg-gray-50"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-12 text-center">Our Mission &amp; Values</h2><div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">{[{icon:<I.Target/>,t:'Neutrality',d:'No publisher bias. We recommend journals based on fit, not commercial relationships.'},{icon:<I.Award/>,t:'Data-Driven',d:'Our enriched offline database ensures accurate, reliable recommendations every time.'},{icon:<I.Users/>,t:'Researcher-First',d:'Built by researchers, for researchers. We understand your pain points.'},{icon:<I.Heart/>,t:'Actionable Guidance',d:"We don't just tell you where to submit — we help you prepare for success."}].map((v,i)=><div key={i} className="bg-white p-6 rounded-xl shadow-sm"><div className="w-12 h-12 bg-[#14B8A6] rounded-lg flex items-center justify-center mb-4 text-white"><span className="w-6 h-6">{v.icon}</span></div><h3 className="text-xl font-bold text-[#1E3A8A] mb-3">{v.t}</h3><p className="text-gray-600">{v.d}</p></div>)}</div></div></section>
+      <section className="py-20"><div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-12 text-center">Meet the Team</h2><div className="grid md:grid-cols-2 gap-12">{[{n:'Irfan',l:'I',d:'Researcher with a passion for AI and academic publishing. Co-created PubFit to streamline the submission process for researchers worldwide.'},{n:'Luca',l:'L',d:'Academic with extensive experience in manuscript preparation and journal selection. Helping researchers avoid the frustration of desk rejections through smart preparation.'}].map((m,i)=><div key={i} className="text-center"><div className="w-32 h-32 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-full mx-auto mb-6 flex items-center justify-center"><span className="text-white text-4xl font-bold">{m.l}</span></div><h3 className="text-2xl font-bold text-[#1E3A8A] mb-2">{m.n}</h3><p className="text-[#14B8A6] font-semibold mb-4">Co-Founder</p><p className="text-gray-600">{m.d}</p></div>)}</div></div></section>
+      <section className="py-20 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white"><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center"><h2 className="text-4xl font-bold mb-6">Join Researchers Worldwide</h2><p className="text-xl text-gray-100 mb-8">Start finding the perfect journals and tailoring your manuscripts today</p><Link to="/dashboard" className="inline-block px-8 py-4 bg-white text-[#1E3A8A] text-lg font-semibold rounded-lg hover:bg-gray-100 transition-colors">Get Started Free</Link></div></section>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PRICING PAGE
+   ═══════════════════════════════════════════════════════════════ */
+function PricingPage(){
+  const plans=[
+    {name:'Free',price:'€0',per:'/month',items:['Unlimited basic searches','3 journal matches per search','Basic explanations','Community support'],cta:'Get Started',ctaStyle:'bg-gray-100 text-[#1E3A8A] hover:bg-gray-200'},
+    {name:'Premium Lite',price:'€12',per:'/month',credit:'5 credits/month',items:['8-15 journal matches','All advanced filters','Detailed explanations','Tailor Your Manuscript','Export reports'],cta:'Start Trial',ctaStyle:'bg-[#14B8A6] text-white hover:bg-[#0F9B8E]'},
+    {name:'Premium Pro',price:'€25',per:'/month',credit:'15 credits/month',items:['8-15 journal matches','All advanced filters','Detailed explanations','Tailor Your Manuscript','Export reports','Priority support'],cta:'Start Trial',best:true},
+    {name:'Unlimited',price:'€60',per:'/month',items:['Unlimited searches','All Premium features','Search history','Team sharing','Priority support'],cta:'Start Trial',ctaStyle:'bg-[#14B8A6] text-white hover:bg-[#0F9B8E]'},
+  ];
+  return(
+    <div className="bg-white">
+      <section className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white py-20"><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center"><h1 className="text-5xl font-bold mb-6">Simple, Transparent Pricing</h1><p className="text-xl text-gray-100">Choose the plan that fits your research needs. Start free, upgrade anytime.</p></div></section>
+      <section className="py-20"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><h2 className="text-3xl font-bold text-[#1E3A8A] mb-8 text-center">Individual Plans</h2><div className="grid md:grid-cols-4 gap-6">{plans.map((p,i)=>p.best?
+        <div key={i} className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white border-2 border-[#14B8A6] rounded-xl p-6 relative transform md:scale-105 shadow-xl"><div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#14B8A6] rounded-full text-sm font-semibold">Best Value</div><h3 className="text-xl font-bold mb-2">{p.name}</h3><div className="mb-6"><span className="text-4xl font-bold">{p.price}</span><span className="text-gray-100">{p.per}</span></div>{p.credit&&<div className="mb-4 text-sm"><strong>{p.credit}</strong><div className="text-xs mt-1">1 credit = 1 full search</div></div>}<ul className="space-y-3 mb-8">{p.items.map((it,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-sm">{it}</span></li>)}</ul><Link to="/dashboard" className="block w-full py-3 bg-white text-[#1E3A8A] text-center font-semibold rounded-lg hover:bg-gray-100 transition-colors">{p.cta}</Link></div>
+        :<div key={i} className="bg-white border-2 border-gray-200 rounded-xl p-6"><h3 className="text-xl font-bold text-[#1E3A8A] mb-2">{p.name}</h3><div className="mb-6"><span className="text-4xl font-bold text-[#1E3A8A]">{p.price}</span><span className="text-gray-600">{p.per}</span></div>{p.credit&&<div className="mb-4 text-sm text-gray-600"><strong className="text-[#14B8A6]">{p.credit}</strong><div className="text-xs mt-1">1 credit = 1 full search</div></div>}<ul className="space-y-3 mb-8">{p.items.map((it,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 text-[#14B8A6] flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-sm text-gray-600">{it}</span></li>)}</ul><Link to="/dashboard" className={`block w-full py-3 text-center font-semibold rounded-lg transition-colors ${p.ctaStyle}`}>{p.cta}</Link></div>
+      )}</div></div></section>
+      <section className="py-20 bg-gray-50"><div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"><h2 className="text-3xl font-bold text-[#1E3A8A] mb-12 text-center">Frequently Asked Questions</h2><div className="space-y-6">{[{q:'What is a credit?',a:'1 credit = 1 full advanced search with all filters, 8-15 journal recommendations, detailed explanations, and access to the Tailor Your Manuscript feature.'},{q:'Is there a student discount?',a:'Yes! Students receive 30% off all individual plans. Verify your student status during checkout with a valid .edu email address.'},{q:'Can I try before committing?',a:'Absolutely! The free tier gives you unlimited basic searches with 3 matches each. Premium features come with a trial period.'}].map((faq,i)=><div key={i} className="bg-white p-6 rounded-xl shadow-sm"><h3 className="font-bold text-[#1E3A8A] mb-2">{faq.q}</h3><p className="text-gray-600">{faq.a}</p></div>)}</div></div></section>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   APP
+   ═══════════════════════════════════════════════════════════════ */
+function App(){
+  const {path,navigate}=useRouter();
+  const page=path.startsWith('/dashboard')?'dashboard':path.startsWith('/features')?'features':path.startsWith('/pricing')?'pricing':path.startsWith('/about')?'about':path==='/'?'home':'home';
+  return(
+    <div className="min-h-screen flex flex-col">
+      <Navigation path={path}/>
+      <main className="flex-1">
+        {page==='home'&&<HomePage/>}
+        {page==='dashboard'&&<DashboardPage/>}
+        {page==='features'&&<FeaturesPage/>}
+        {page==='pricing'&&<PricingPage/>}
+        {page==='about'&&<AboutPage/>}
+      </main>
+      <Footer/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
 </body>
 </html>
