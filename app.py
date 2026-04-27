@@ -218,6 +218,7 @@ class RecommendRequest(BaseModel):
     introduction_conclusion: str = Field("", description="Optional: paste the last paragraph of your Introduction and/or your Conclusion. Helps match the contribution and audience.")
     methods: str = Field("", description="Optional: paste your Materials & Methods section. Helps match methodology-specific journals.")
     results_summary: str = Field("", description="Optional: paste key results or findings. Helps match journals that publish similar types of evidence.")
+    references: str = Field("", description="Optional but HIGHLY RECOMMENDED: paste your reference list. Cited journals are matched against our database and used to boost ranking — it's a strong topical-fit signal and editors favor papers that cite their own journal. Free-text accepted (APA, Vancouver, AMA, Nature styles all parsed).")
 
     # ─── Manuscript metadata ───
     article_type: str = Field("Original Research", description="Original Research | Review Article | Systematic Review | Meta-Analysis | Case Report | Case Series | Short Communication / Brief Report | Letter to the Editor | Editorial | Commentary / Opinion | Perspective | Methods / Protocols | Technical Note | Book Review | Conference Paper | Data Paper / Data Article")
@@ -254,7 +255,7 @@ class RecommendRequest(BaseModel):
         }
     }
 
-    @field_validator("abstract", "introduction_conclusion", "methods", "results_summary", "keywords", mode="before")
+    @field_validator("abstract", "introduction_conclusion", "methods", "results_summary", "keywords", "references", mode="before")
     @classmethod
     def clean_text_fields(cls, v):
         return _clean_text(v)
@@ -509,6 +510,7 @@ async def recommend(raw_request: Request):
         introduction_conclusion=request.introduction_conclusion,
         methods=request.methods,
         results_summary=request.results_summary,
+        references=request.references,
         language=detected_lang,
     )
 

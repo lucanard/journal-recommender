@@ -28,6 +28,8 @@ class UserConstraints:
     introduction_conclusion: str = ""
     methods: str = ""
     results_summary: str = ""
+    # User's reference list — strong topical/editor-fit signal
+    references: str = ""
 
 
 @dataclass
@@ -50,7 +52,247 @@ class Recommendation:
     acceptance_rate: str = ""
     review_time: str = ""
     homepage: str = ""
+    cited_count: int = 0          # times this journal appears in user's references
+    citation_boost: float = 1.0   # multiplicative boost applied (1.0 = none)
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Reference parsing & journal matching
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Words to ignore when comparing journal-name token sequences
+_JOURNAL_STOPWORDS = {"of", "the", "and", "in", "on", "for", "to", "a", "an", "&"}
+
+
+def _normalize_journal_tokens(name: str) -> list:
+    """Lowercase, strip punctuation/stopwords, return list of word tokens."""
+    if not name:
+        return []
+    n = name.lower().strip()
+    n = re.sub(r"\([^)]*\)", " ", n)          # remove parentheticals e.g. "(London)"
+    n = re.sub(r"[.,;:&/\-]", " ", n)         # punctuation → space
+    n = re.sub(r"[^a-z0-9\s]", "", n)         # drop other punctuation
+    n = re.sub(r"\s+", " ", n).strip()
+    return [t for t in n.split() if t and t not in _JOURNAL_STOPWORDS]
+
+
+def _looks_like_journal(text: str) -> bool:
+    """Quick sanity filter — rejects titles, author lists, URLs."""
+    if not text or len(text) < 3 or len(text) > 100:
+        return False
+    if "://" in text or "@" in text:
+        return False
+    words = text.split()
+    if len(words) > 12:           # too long to be a journal name
+        return False
+    cap_starts = sum(1 for w in words if w and w[0].isupper())
+    return cap_starts >= max(1, len(words) // 2)
+
+
+def _strip_title_prefix(name: str) -> str:
+    """
+    If a sentence-break appears inside the captured journal name, keep only the
+    part after it. Two heuristics:
+      (a) A period is a sentence end if preceded by ≥5 consecutive lowercase
+          letters (handles "...polyphenols. Analytical Chemistry").
+      (b) A period followed by a single-letter abbreviation (e.g. "J.") signals
+          the start of an abbreviation chain (handles short titles like
+          "Wine. J. Agric. Food Chem.").
+    Abbreviation periods like "Mol.", "Biol.", "Chem.", "Agric." are preserved.
+    """
+    if not name:
+        return name
+    # (a) long lowercase word + period + Capital
+    parts = re.split(r"(?<=[a-z]{5})\.\s+(?=[A-Z])", name)
+    if len(parts) > 1:
+        return parts[-1].strip().rstrip(".,;:")
+    # (b) any 3+ char word + period + (single-capital + period) — abbrev chain start
+    # ("Wine. J.", "SVM. J.") but NOT abbreviation chains themselves ("J. M.", "Mol. B.")
+    parts = re.split(r"(?<=[A-Za-z]{3})\.\s+(?=[A-Z]\.\s)", name)
+    if len(parts) > 1:
+        return parts[-1].strip().rstrip(".,;:")
+    return name
+
+
+def _extract_journal_from_reference(line: str):
+    """
+    Extract (journal_name, issn) from a single reference line.
+    Returns (None, None) if nothing looks like a journal.
+    """
+    line = line.strip()
+    if len(line) < 15:
+        return None, None
+    # Strip leading numbering: "1.", "[1]", "(1)", "1)"
+    line = re.sub(r"^[\[\(]?\s*\d{1,3}\s*[\]\)\.]?\s*", "", line)
+
+    # ISSN — high-confidence anchor (require explicit "ISSN" prefix to avoid
+    # matching page ranges like "4500-4510" which share the XXXX-XXXX shape).
+    issn = None
+    m = re.search(r"\bISSN[\s:]*?(\d{4}-\d{3}[\dX])\b", line, re.IGNORECASE)
+    if m:
+        issn = m.group(1)
+
+    # Year (1900-2030) — anchor for journal-name extraction
+    year_match = re.search(r"\b(19\d{2}|20[0-3]\d)\b", line)
+
+    # Pattern A — italic-marked: *Journal Name* or _Journal Name_
+    m = re.search(r"[*_]([A-Z][^*_]{2,80})[*_]", line)
+    if m:
+        cand = _strip_title_prefix(m.group(1).strip(" .,"))
+        if _looks_like_journal(cand):
+            return cand, issn
+
+    # Pattern B — Vancouver/AMA: ". J Mol Biol. 2023" — period-bounded chunk before year
+    m = re.search(r"\.\s+([A-Z][A-Za-z\.\s&\-]{2,80}?)\.\s+(?:19\d{2}|20[0-3]\d)\b", line)
+    if m:
+        cand = _strip_title_prefix(m.group(1).strip(" .,"))
+        if _looks_like_journal(cand):
+            return cand, issn
+
+    # Pattern C — APA: ". Journal Name, 12(3), 100-120"
+    m = re.search(r"\.\s+([A-Z][A-Za-z\.\s&\-]{2,80}?),\s+\d+\s*[\(,]", line)
+    if m:
+        cand = _strip_title_prefix(m.group(1).strip(" .,"))
+        if _looks_like_journal(cand):
+            return cand, issn
+
+    # Pattern D — fallback: chunk before year (works when title was already stripped)
+    if year_match:
+        before = line[: year_match.start()].rstrip(" .,;")
+        chunks = re.split(r"\.\s+", before)
+        if chunks:
+            cand = _strip_title_prefix(chunks[-1].strip(" .,"))
+            if _looks_like_journal(cand):
+                return cand, issn
+
+    return None, issn
+
+
+def _split_references(refs_text: str) -> list:
+    """Split a references blob into individual entries."""
+    if not refs_text or not refs_text.strip():
+        return []
+    txt = refs_text.strip()
+    # Split on newlines that are followed by a numbering marker:
+    #   "1. ", "12. ", "[3]", "(4)", "5) " — handles mixed styles together.
+    marker = r"(?:\[\d{1,3}\]|\(\d{1,3}\)|\d{1,3}[\.\)])\s+"
+    parts = re.split(rf"\n(?=\s*{marker})", txt)
+    if len(parts) < 2:
+        # No numbering found — fall back to blank-line then single-line split
+        parts = re.split(r"\n\s*\n|\n", txt)
+    out = []
+    for p in parts:
+        p = p.strip()
+        if len(p) >= 15:
+            out.append(p)
+    return out
+
+
+def parse_references(refs_text: str) -> list:
+    """
+    Parse free-text references into [{journal_name, issn?}, ...].
+    Returns empty list if nothing extractable.
+    """
+    entries = _split_references(refs_text)
+    out = []
+    for entry in entries:
+        name, issn = _extract_journal_from_reference(entry)
+        if name or issn:
+            out.append({"journal_name": name, "issn": issn})
+    return out
+
+
+def _build_journal_index(journals: dict) -> dict:
+    """
+    Build lookup indices for fast matching:
+      - by_issn:   issn -> journal_id
+      - by_first_token: first_token -> [(journal_id, tokens), ...]
+    """
+    by_issn = {}
+    by_first_token = {}
+    for jid, j in journals.items():
+        # ISSN variants
+        for key in ("issn", "electronic_issn", "print_issn"):
+            v = j.get(key)
+            if v and isinstance(v, str):
+                by_issn[v.strip().upper()] = jid
+        # Tokenize title
+        title = j.get("title") or ""
+        toks = _normalize_journal_tokens(title)
+        if toks:
+            by_first_token.setdefault(toks[0][:4], []).append((jid, toks))
+    return {"by_issn": by_issn, "by_first_token": by_first_token}
+
+
+def _tokens_compatible(cited: list, full: list) -> bool:
+    """
+    True if `cited` tokens look like an abbreviation of `full` tokens.
+    Each cited token must be a prefix of (or equal to) the corresponding full token.
+    Allows full to have at most 2 extra trailing tokens.
+    """
+    if not cited or not full:
+        return False
+    if len(cited) > len(full):
+        return False
+    if len(full) - len(cited) > 2:
+        return False
+    for ct, ft in zip(cited, full):
+        if ct == ft:
+            continue
+        if ft.startswith(ct) or ct.startswith(ft):
+            continue
+        return False
+    return True
+
+
+def match_cited_journal(cited_name: str, cited_issn, journal_index: dict):
+    """Return journal_id (or None) for a single parsed reference."""
+    if cited_issn:
+        jid = journal_index["by_issn"].get(cited_issn.strip().upper())
+        if jid is not None:
+            return jid
+    if not cited_name:
+        return None
+    cited_toks = _normalize_journal_tokens(cited_name)
+    if not cited_toks:
+        return None
+    bucket_key = cited_toks[0][:4]
+    candidates = journal_index["by_first_token"].get(bucket_key, [])
+    # Also check buckets where the full token starts with the cited prefix
+    # (e.g. cited "j" → bucket "j", but full could be "jour")
+    for k, lst in journal_index["by_first_token"].items():
+        if k != bucket_key and (k.startswith(cited_toks[0]) or cited_toks[0].startswith(k)):
+            candidates = candidates + lst
+    best = None
+    for jid, full_toks in candidates:
+        if _tokens_compatible(cited_toks, full_toks):
+            # Prefer tighter length match
+            penalty = abs(len(full_toks) - len(cited_toks))
+            if best is None or penalty < best[1]:
+                best = (jid, penalty)
+    return best[0] if best else None
+
+
+def build_citation_map(refs_text: str, journal_index: dict):
+    """
+    Parse references and match them to journals in the database.
+    Returns (citation_counts, parsed_count, matched_count).
+      citation_counts: {journal_id: count}
+    """
+    parsed = parse_references(refs_text)
+    counts = {}
+    matched = 0
+    for entry in parsed:
+        jid = match_cited_journal(entry.get("journal_name"), entry.get("issn"), journal_index)
+        if jid is not None:
+            counts[jid] = counts.get(jid, 0) + 1
+            matched += 1
+    return counts, len(parsed), matched
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Recommendation engine
+# ═══════════════════════════════════════════════════════════════════════════════
 
 class RecommendationEngine:
 
@@ -58,6 +300,18 @@ class RecommendationEngine:
         self.store = vector_store
         self.embedder = embedding_service
         self.llm = llm_client
+        self._journal_index = None  # built lazily on first use
+
+    def _get_journal_index(self):
+        """Lazy-build the journal lookup index used for citation matching."""
+        if self._journal_index is None:
+            self._journal_index = _build_journal_index(self.store.journals)
+            log.info(
+                f"Built journal index for citation matching: "
+                f"{len(self._journal_index['by_issn'])} ISSN keys, "
+                f"{len(self._journal_index['by_first_token'])} title-token buckets"
+            )
+        return self._journal_index
 
     def recommend(self, abstract, constraints, num_results=3, candidate_pool=0):
         timing = {}
@@ -122,6 +376,37 @@ class RecommendationEngine:
             filtered = raw_results
             relaxed = True
 
+        # Step 2c: Citation boost — journals cited in the user's references
+        # are statistically much better fits (topical alignment + editor signal).
+        t0 = time.time()
+        cite_counts = {}
+        refs_parsed = 0
+        refs_matched = 0
+        if constraints.references and constraints.references.strip():
+            try:
+                idx = self._get_journal_index()
+                cite_counts, refs_parsed, refs_matched = build_citation_map(
+                    constraints.references, idx
+                )
+                if cite_counts:
+                    for r in filtered:
+                        jid = r["journal"].get("id")
+                        cites = cite_counts.get(jid, 0)
+                        r["cited_count"] = cites
+                        if cites > 0:
+                            # Multiplicative boost: +20% per cite, capped at 2x
+                            boost = min(1.0 + 0.20 * cites, 2.0)
+                            r["score"] = r["score"] * boost
+                            r["citation_boost"] = round(boost, 3)
+                    filtered.sort(key=lambda x: x["score"], reverse=True)
+                    log.info(
+                        f"Citation boost: parsed {refs_parsed} refs, "
+                        f"matched {refs_matched} ({len(cite_counts)} unique journals)"
+                    )
+            except Exception as e:
+                log.warning(f"Citation boost failed (non-fatal): {e}")
+        timing["citation_ms"] = int((time.time() - t0) * 1000)
+
         # Step 3: LLM re-rank (10 candidates for better selection)
         t0 = time.time()
         if self.llm and len(filtered) > 0:
@@ -147,6 +432,9 @@ class RecommendationEngine:
             "candidates_searched": len(raw_results),
             "candidates_after_filter": len(filtered) if not relaxed else 0,
             "constraints_relaxed": relaxed,
+            "references_parsed": refs_parsed,
+            "references_matched": refs_matched,
+            "unique_journals_cited": len(cite_counts),
         }
 
     def _build_query_text(self, abstract, constraints):
@@ -242,16 +530,21 @@ class RecommendationEngine:
         for rank, (score, r) in enumerate(scored[:num_results], 1):
             j = r["journal"]
             idx = (["PubMed"] if j.get("indexed_pubmed") else []) + (["DOAJ"] if j.get("in_doaj") else [])
+            cited = r.get("cited_count", 0)
+            reasons = [f"Similarity: {r['score']:.3f}", f"Subjects: {', '.join(j.get('subject_categories', [])[:3]) or 'N/A'}"]
+            if cited > 0:
+                reasons.insert(0, f"Cited {cited}× in your references — strong topical fit")
             recs.append(Recommendation(
                 rank=rank, journal_id=j.get("id", 0), journal_name=j.get("title", "?"), publisher=j.get("publisher", "?"),
                 issn=j.get("issn", j.get("electronic_issn", "")), oa_model=j.get("oa_model", "?"),
                 apc_estimate=j.get("apc_display", "?"), indexing=idx,
                 fit="High" if score > 0.6 else "Medium", score=round(score, 4),
-                reasons=[f"Similarity: {r['score']:.3f}", f"Subjects: {', '.join(j.get('subject_categories', [])[:3]) or 'N/A'}"],
+                reasons=reasons,
                 concern="Heuristic scoring — enable LLM for better results.",
                 subjects=j.get("subject_categories", [])[:5], impact_proxy=j.get("impact_proxy", ""),
                 impact_factor=str(j.get("two_yr_mean_citedness", "?")),
                 acceptance_rate="N/A", review_time="N/A", homepage=j.get("homepage", ""),
+                cited_count=cited, citation_boost=r.get("citation_boost", 1.0),
             ))
         return recs
 
@@ -273,6 +566,7 @@ class RecommendationEngine:
                 "impact_factor_approx": j.get("two_yr_mean_citedness", "Unknown"),
                 "h_index": j.get("h_index", "Unknown"),
                 "indexing": [], "similarity": round(r["score"], 4),
+                "cited_in_user_refs": r.get("cited_count", 0),
             }
             if j.get("indexed_pubmed"): d["indexing"].append("PubMed")
             if j.get("in_doaj"): d["indexing"].append("DOAJ")
@@ -304,6 +598,12 @@ RULES — MANUSCRIPT SECTIONS:
 - The user may provide Introduction/Conclusion, Methods, and Results in addition to the abstract
 - Use ALL provided sections to assess fit. Methods help match methodology-focused journals. Results help match journals that publish similar evidence types.
 - Weigh scope fit (abstract + intro/conclusion) highest, then methodology fit, then evidence type.
+
+RULES — REFERENCES SIGNAL ("cited_in_user_refs"):
+- If a candidate has cited_in_user_refs > 0, the user has already cited that journal in their manuscript. This is a strong positive signal of topical alignment AND a known editor preference (editors favor papers that cite their own journal).
+- When two candidates are otherwise comparable in scope/quality fit, strongly prefer the one with higher cited_in_user_refs.
+- Do NOT promote a candidate purely on citations if scope clearly mismatches — a single tangential citation is not enough.
+- When recommending a candidate with cited_in_user_refs > 0, mention it explicitly in `reasons` (e.g. "Cited 4× in your references — strong topical fit and editor signal").
 
 Respond ONLY with valid JSON (no markdown, no backticks):
 {
@@ -379,6 +679,7 @@ Select the top {num_results}. For EVERY journal: state publishing model (especia
             for rank, rec in enumerate(parsed.get("recommendations", [])[:num_results], 1):
                 cn = rec.get("candidate_num", rank)
                 cj = candidates[cn - 1]["journal"] if 1 <= cn <= len(candidates) else {}
+                cr = candidates[cn - 1] if 1 <= cn <= len(candidates) else {}
                 recs.append(Recommendation(
                     rank=rank,
                     journal_id=cj.get("id", 0),
@@ -398,6 +699,8 @@ Select the top {num_results}. For EVERY journal: state publishing model (especia
                     acceptance_rate=rec.get("acceptance_rate", "N/A"),
                     review_time=rec.get("review_time", "N/A"),
                     homepage=cj.get("homepage", ""),
+                    cited_count=cr.get("cited_count", 0) if isinstance(cr, dict) else 0,
+                    citation_boost=cr.get("citation_boost", 1.0) if isinstance(cr, dict) else 1.0,
                 ))
 
             # Post-filter APC-free
