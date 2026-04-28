@@ -117,12 +117,14 @@ function PremiumModal({onClose,feature}){
 
 /* NAV */
 function Navigation({path}){
-  const [open,setOpen]=useState(false);const [showAuth,setShowAuth]=useState(false);const {user,plan}=useAuth();const isPro=plan==='premium';
+  const [open,setOpen]=useState(false);const [showAuth,setShowAuth]=useState(false);const [userMenu,setUserMenu]=useState(false);const {user,plan}=useAuth();const isPro=plan==='premium';
+  const menuRef=useRef(null);
+  useEffect(()=>{if(!userMenu)return;const h=(e)=>{if(menuRef.current&&!menuRef.current.contains(e.target))setUserMenu(false);};document.addEventListener('mousedown',h);return()=>document.removeEventListener('mousedown',h);},[userMenu]);
   const ac=(p)=>path===p?'text-[#1E3A8A]':'text-gray-600 hover:text-[#1E3A8A]';
   return(<nav className="bg-white border-b border-gray-200 sticky top-0 z-50"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="flex justify-between items-center h-16">
     <Link to="/" className="flex items-center gap-2"><div className="w-10 h-10 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-lg flex items-center justify-center"><span className="w-6 h-6 text-white"><I.Sparkles/></span></div><span className="font-bold text-xl text-[#1E3A8A]">PubFit</span></Link>
     <div className="hidden md:flex items-center gap-8"><Link to="/" className={`text-sm font-medium ${ac('/')}`}>Home</Link><Link to="/features" className={`text-sm font-medium ${ac('/features')}`}>Features</Link><Link to="/pricing" className={`text-sm font-medium ${ac('/pricing')}`}>Pricing</Link><Link to="/about" className={`text-sm font-medium ${ac('/about')}`}>About</Link></div>
-    <div className="hidden md:flex items-center gap-3">{user?<><div className="flex items-center gap-2 text-sm text-gray-600"><span className="w-4 h-4"><I.User/></span>{user.email?.split('@')[0]}{isPro&&<span className="px-2 py-0.5 bg-[#14B8A6]/10 text-[#14B8A6] text-xs font-bold rounded">PRO</span>}</div><button onClick={()=>fbAuth.signOut()} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg" title="Sign out"><span className="w-4 h-4"><I.LogOut/></span></button></>:<><button onClick={()=>setShowAuth('login')} className="text-sm font-medium text-gray-600 hover:text-[#1E3A8A]">Login</button><Link to="/dashboard" className="px-4 py-2 bg-[#14B8A6] text-white text-sm font-medium rounded-lg hover:bg-[#0F9B8E]">Get Started Free</Link></>}</div>
+    <div className="hidden md:flex items-center gap-3">{user?<div ref={menuRef} className="relative"><button onClick={()=>setUserMenu(!userMenu)} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"><span className="w-4 h-4 text-gray-600"><I.User/></span><span className="text-sm text-gray-700">{user.email?.split('@')[0]}</span>{isPro&&<span className="px-2 py-0.5 bg-[#14B8A6]/10 text-[#14B8A6] text-xs font-bold rounded">PRO</span>}<span className={`w-4 h-4 text-gray-400 transition-transform ${userMenu?'rotate-180':''}`}><I.ChevronDown/></span></button>{userMenu&&<div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"><div className="px-4 py-3 border-b border-gray-100"><p className="text-xs text-gray-500 mb-0.5">Signed in as</p><p className="text-sm font-medium text-gray-900 truncate">{user.email}</p><div className="mt-2 flex items-center gap-2"><span className={`px-2 py-0.5 text-xs font-bold rounded ${isPro?'bg-[#14B8A6]/10 text-[#14B8A6]':'bg-gray-100 text-gray-600'}`}>{isPro?'PRO':'FREE'}</span>{!isPro&&<Link to="/pricing" onClick={()=>setUserMenu(false)} className="text-xs text-[#14B8A6] hover:underline">Upgrade →</Link>}</div></div><Link to="/account" onClick={()=>setUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"><span className="w-4 h-4 text-gray-400"><I.User/></span>Account settings</Link><Link to="/dashboard" onClick={()=>setUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"><span className="w-4 h-4 text-gray-400"><I.Search/></span>New search</Link><div className="border-t border-gray-100 my-1"></div><button onClick={()=>{setUserMenu(false);fbAuth.signOut();}} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"><span className="w-4 h-4"><I.LogOut/></span>Sign out</button></div>}</div>:<><button onClick={()=>setShowAuth('login')} className="text-sm font-medium text-gray-600 hover:text-[#1E3A8A]">Login</button><Link to="/dashboard" className="px-4 py-2 bg-[#14B8A6] text-white text-sm font-medium rounded-lg hover:bg-[#0F9B8E]">Get Started Free</Link></>}</div>
     <button onClick={()=>setOpen(!open)} className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100">{open?<span className="w-6 h-6"><I.X/></span>:<span className="w-6 h-6"><I.Menu/></span>}</button>
   </div></div>
   {open&&<div className="md:hidden border-t border-gray-200 bg-white px-4 py-4 space-y-3"><Link to="/" className="block py-2 text-sm text-gray-600" onClick={()=>setOpen(false)}>Home</Link><Link to="/features" className="block py-2 text-sm text-gray-600" onClick={()=>setOpen(false)}>Features</Link><Link to="/pricing" className="block py-2 text-sm text-gray-600" onClick={()=>setOpen(false)}>Pricing</Link><Link to="/about" className="block py-2 text-sm text-gray-600" onClick={()=>setOpen(false)}>About</Link>{user?<button onClick={()=>{fbAuth.signOut();setOpen(false);}} className="block py-2 text-sm text-red-600">Sign Out</button>:<Link to="/dashboard" className="block w-full px-4 py-2 bg-[#14B8A6] text-white text-sm rounded-lg text-center" onClick={()=>setOpen(false)}>Get Started</Link>}</div>}
@@ -135,17 +137,15 @@ function Footer(){return(<footer className="bg-[#1E3A8A] text-white"><div classN
 
 /* HOME */
 function HomePage(){
-const {user,plan}=useAuth();const isPro=plan==='premium';const isFree=user&&!isPro;const userName=user?.email?.split('@')[0]||'there';
+const {user,loading}=useAuth();
+// Logged-in users skip the marketing page entirely → straight to dashboard
+useEffect(()=>{if(user)window.location.hash='/dashboard';},[user]);
+if(loading||user)return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 text-[#14B8A6]"><I.Loader/></div></div>;
 return(<div className="bg-white">
-{/* HERO - adapts to auth state */}
-{user?(
-<section className="relative bg-gradient-to-br from-[#1E3A8A] via-[#1E3A8A] to-[#14B8A6] text-white overflow-hidden"><div className="absolute inset-0 opacity-10"><div className="absolute top-20 left-20 w-72 h-72 bg-white rounded-full blur-3xl"></div><div className="absolute bottom-20 right-20 w-96 h-96 bg-[#14B8A6] rounded-full blur-3xl"></div></div><div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24"><div className="text-center max-w-4xl mx-auto fade-in"><div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/15 backdrop-blur-sm rounded-full mb-6 text-sm font-medium">{isPro?<><span className="w-4 h-4"><I.Crown/></span>PRO Account · All features unlocked</>:<><span className="w-4 h-4"><I.Sparkles/></span>Free Account</>}</div><h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">Welcome back, {userName}.</h1><p className="text-xl md:text-2xl text-gray-100 mb-10">{isPro?'Your full toolkit is ready — paste an abstract and let\'s find the right journal.':'Ready to find the perfect journal for your next manuscript?'}</p><div className="flex flex-col sm:flex-row gap-4 justify-center"><Link to="/dashboard" className="px-8 py-4 bg-[#14B8A6] text-white text-lg font-semibold rounded-lg hover:bg-[#0F9B8E] flex items-center justify-center gap-2">{isPro?'Open Dashboard':'New Search'} <span className="w-5 h-5"><I.ArrowRight/></span></Link>{isFree&&<Link to="/pricing" className="px-8 py-4 bg-white text-[#1E3A8A] text-lg font-semibold rounded-lg hover:bg-gray-100 flex items-center justify-center gap-2"><span className="w-5 h-5"><I.Crown/></span>Upgrade to Pro</Link>}{isPro&&<Link to="/features" className="px-8 py-4 bg-white/10 backdrop-blur-sm border-2 border-white text-white text-lg font-semibold rounded-lg hover:bg-white/20">What's New</Link>}</div></div></div></section>
-):(
 <section className="relative bg-gradient-to-br from-[#1E3A8A] via-[#1E3A8A] to-[#14B8A6] text-white overflow-hidden"><div className="absolute inset-0 opacity-10"><div className="absolute top-20 left-20 w-72 h-72 bg-white rounded-full blur-3xl"></div><div className="absolute bottom-20 right-20 w-96 h-96 bg-[#14B8A6] rounded-full blur-3xl"></div></div><div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24"><div className="text-center max-w-4xl mx-auto fade-in"><h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">Submit Smarter: AI Journal Recommendations + Manuscript Tailoring</h1><p className="text-xl md:text-2xl text-gray-100 mb-8">Paste your abstract → Get perfectly matched journals + journal-specific guidance.</p><div className="flex flex-wrap justify-center gap-8 mb-10"><div className="flex items-center gap-2"><span className="w-5 h-5 text-[#14B8A6]"><I.Check/></span><span className="text-sm">First search free — no signup</span></div><div className="flex items-center gap-2"><span className="w-5 h-5 text-[#14B8A6]"><I.Check/></span><span className="text-sm">Neutral &amp; cross-publisher</span></div><div className="flex items-center gap-2"><span className="w-5 h-5 text-[#14B8A6]"><I.Check/></span><span className="text-sm">9,300+ journals</span></div></div><div className="flex flex-col sm:flex-row gap-4 justify-center"><Link to="/dashboard" className="px-8 py-4 bg-[#14B8A6] text-white text-lg font-semibold rounded-lg hover:bg-[#0F9B8E] flex items-center justify-center gap-2">Try for Free <span className="w-5 h-5"><I.ArrowRight/></span></Link><Link to="/pricing" className="px-8 py-4 bg-white text-[#1E3A8A] text-lg font-semibold rounded-lg hover:bg-gray-100">View Pricing</Link></div></div></div></section>
-)}
 <section className="py-20 bg-gray-50"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="text-center mb-16"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-4">How It Works</h2></div><div className="grid md:grid-cols-3 gap-8">{[{n:'1',t:'Input Your Abstract',d:'Paste your abstract — first search is free, no signup needed.',b:'Free'},{n:'2',t:'Get Ranked Matches',d:'AI-powered recommendations ranked by fit with explanations.',b:'Free: 3 | Premium: up to 10'},{n:'3',t:'Tailor Your Manuscript',d:'Journal-specific title suggestions, cover letter tips, reviewer concerns.',b:'Premium ⭐',hl:true}].map(s=><div key={s.n} className={`bg-white p-8 rounded-xl shadow-sm border ${s.hl?'border-2 border-[#14B8A6]':'border-gray-200'}`}><div className="w-12 h-12 bg-[#14B8A6] rounded-lg flex items-center justify-center mb-6"><span className="text-white font-bold text-xl">{s.n}</span></div><h3 className="text-xl font-bold text-[#1E3A8A] mb-3">{s.t}</h3><p className="text-gray-600 mb-4">{s.d}</p><span className="text-sm text-[#14B8A6] font-semibold">{s.b}</span></div>)}</div></div></section>
 <section className="py-20 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="grid md:grid-cols-3 gap-12 text-center"><div><div className="text-4xl font-bold mb-2">50%</div><p className="text-gray-100">Desk rejections avoided</p></div><div><div className="text-4xl font-bold mb-2">10x</div><p className="text-gray-100">Faster than manual search</p></div><div><div className="text-4xl font-bold mb-2">9,300+</div><p className="text-gray-100">Journals</p></div></div></div></section>
-<section className="py-20"><div className="max-w-4xl mx-auto px-4 text-center"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-6">{user?(isPro?'Ready for your next manuscript?':'Find your perfect journal'):'Ready to Find Your Perfect Journal?'}</h2><Link to="/dashboard" className="px-8 py-4 bg-[#14B8A6] text-white text-lg font-semibold rounded-lg hover:bg-[#0F9B8E] inline-block">{user?(isPro?'New Search →':'Start Search'):'Start Free Search'}</Link></div></section>
+<section className="py-20"><div className="max-w-4xl mx-auto px-4 text-center"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-6">Ready to Find Your Perfect Journal?</h2><Link to="/dashboard" className="px-8 py-4 bg-[#14B8A6] text-white text-lg font-semibold rounded-lg hover:bg-[#0F9B8E] inline-block">Start Free Search</Link></div></section>
 </div>);}
 
 /* DASHBOARD */
@@ -281,9 +281,48 @@ function PricingPage(){
   </div>);
 }
 
+/* ACCOUNT */
+function AccountPage(){
+  const {user,plan,loading}=useAuth();const isPro=plan==='premium';
+  const [stats,setStats]=useState({searches:0,created:''});const [busy,setBusy]=useState(false);const [msg,setMsg]=useState('');
+  useEffect(()=>{if(!user)return;fbDb.collection('users').doc(user.uid).get().then(d=>{if(d.exists){const x=d.data();setStats({searches:x.searches||0,created:x.created||''});}}).catch(()=>{});},[user]);
+  if(loading)return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 text-[#14B8A6]"><I.Loader/></div></div>;
+  if(!user){window.location.hash='/';return null;}
+  async function resetPw(){setBusy(true);setMsg('');try{await fbAuth.sendPasswordResetEmail(user.email);setMsg('Password reset email sent. Check your inbox.');}catch(e){setMsg('Error: '+e.message);}finally{setBusy(false);}}
+  return(<div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <h1 className="text-3xl font-bold text-[#1E3A8A] mb-2">Account settings</h1>
+    <p className="text-gray-600 mb-8">Manage your PubFit account.</p>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 className="text-lg font-bold text-[#1E3A8A] mb-4">Profile</h2>
+      <div className="space-y-3">
+        <div className="flex justify-between items-start py-2 border-b border-gray-100"><div><p className="text-xs text-gray-500">Email</p><p className="text-sm text-gray-900">{user.email}</p></div></div>
+        <div className="flex justify-between items-start py-2 border-b border-gray-100"><div><p className="text-xs text-gray-500">Account created</p><p className="text-sm text-gray-900">{stats.created?new Date(stats.created).toLocaleDateString():'—'}</p></div></div>
+        <div className="flex justify-between items-start py-2"><div><p className="text-xs text-gray-500">Searches</p><p className="text-sm text-gray-900">{stats.searches}</p></div></div>
+      </div>
+    </div>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 className="text-lg font-bold text-[#1E3A8A] mb-4">Plan</h2>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3"><span className={`px-3 py-1 text-sm font-bold rounded ${isPro?'bg-[#14B8A6]/10 text-[#14B8A6]':'bg-gray-100 text-gray-600'}`}>{isPro?'PRO':'FREE'}</span><p className="text-sm text-gray-600">{isPro?'All features unlocked':'Limited to 3 results, no filters or tailoring'}</p></div>
+        {!isPro&&<Link to="/pricing" className="px-4 py-2 bg-[#14B8A6] text-white text-sm font-medium rounded-lg hover:bg-[#0F9B8E]">Upgrade</Link>}
+      </div>
+    </div>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 className="text-lg font-bold text-[#1E3A8A] mb-4">Security</h2>
+      <button onClick={resetPw} disabled={busy} className="px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50">{busy?'Sending...':'Send password reset email'}</button>
+      {msg&&<p className="mt-3 text-sm text-gray-600">{msg}</p>}
+    </div>
+    <div className="bg-white rounded-xl shadow-sm border border-red-200 p-6">
+      <h2 className="text-lg font-bold text-red-600 mb-4">Sign out</h2>
+      <p className="text-sm text-gray-600 mb-3">Sign out of your account on this device.</p>
+      <button onClick={()=>fbAuth.signOut()} className="px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-lg hover:bg-red-100 flex items-center gap-2"><span className="w-4 h-4"><I.LogOut/></span>Sign out</button>
+    </div>
+  </div>);
+}
+
 /* APP */
-function App(){const {path}=useRouter();const pg=path.startsWith('/dashboard')?'d':path.startsWith('/features')?'f':path.startsWith('/pricing')?'p':path.startsWith('/about')?'a':'h';
-return(<AuthProvider><div className="min-h-screen flex flex-col"><Navigation path={path}/><main className="flex-1">{pg==='h'&&<HomePage/>}{pg==='d'&&<DashboardPage/>}{pg==='f'&&<FeaturesPage/>}{pg==='p'&&<PricingPage/>}{pg==='a'&&<AboutPage/>}</main><Footer/></div></AuthProvider>);}
+function App(){const {path}=useRouter();const pg=path.startsWith('/dashboard')?'d':path.startsWith('/features')?'f':path.startsWith('/pricing')?'p':path.startsWith('/about')?'a':path.startsWith('/account')?'ac':'h';
+return(<AuthProvider><div className="min-h-screen flex flex-col"><Navigation path={path}/><main className="flex-1">{pg==='h'&&<HomePage/>}{pg==='d'&&<DashboardPage/>}{pg==='f'&&<FeaturesPage/>}{pg==='p'&&<PricingPage/>}{pg==='a'&&<AboutPage/>}{pg==='ac'&&<AccountPage/>}</main><Footer/></div></AuthProvider>);}
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
