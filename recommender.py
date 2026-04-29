@@ -7,6 +7,7 @@ Pipeline: Embed all sections → Vector search → Constraint filter → LLM re-
 import json, logging, re, time
 from typing import Optional
 from dataclasses import dataclass, field, asdict
+import numpy as np
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +54,9 @@ class Recommendation:
     review_time: str = ""
     homepage: str = ""
     cited_count: int = 0          # times this journal appears in user's references
-    citation_boost: float = 1.0   # multiplicative boost applied (1.0 = none)
+    citation_boost: float = 1.0   # total multiplicative boost applied (1.0 = none)
+    topical_score: float = 0.0    # cosine similarity to user's reference-cluster centroid (0..1)
+    cluster_size: int = 0         # how many cited journals contributed to the centroid
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -290,6 +293,50 @@ def build_citation_map(refs_text: str, journal_index: dict):
     return counts, len(parsed), matched
 
 
+def build_reference_centroid(citation_counts: dict, store) -> tuple:
+    """
+    Build a weighted centroid from cited journals' embeddings.
+
+    Each cited journal contributes its embedding vector, weighted by its citation
+    count (capped — see CITE_WEIGHT_CAP — to prevent one heavily-cited journal
+    from dominating the centroid). The result is L2-normalized so cosine
+    similarity reduces to a dot product downstream.
+
+    Parameters
+    ----------
+    citation_counts : {journal_id: count}  — output of build_citation_map
+    store           : the VectorStore (must expose .embeddings, .id_to_idx)
+
+    Returns
+    -------
+    (centroid_unit_vector, cluster_size)  — or (None, 0) if no embeddings found.
+    """
+    CITE_WEIGHT_CAP = 5  # weight per journal saturates at 5 cites
+    if not citation_counts:
+        return None, 0
+    if store is None or not hasattr(store, "embeddings") or store.embeddings is None:
+        return None, 0
+
+    vecs, weights = [], []
+    for jid, cites in citation_counts.items():
+        idx_pos = store.id_to_idx.get(int(jid))
+        if idx_pos is None:
+            continue
+        vecs.append(store.embeddings[idx_pos])
+        weights.append(min(cites, CITE_WEIGHT_CAP))
+
+    if not vecs:
+        return None, 0
+
+    V = np.asarray(vecs, dtype=np.float32)              # (k, D)
+    w = np.asarray(weights, dtype=np.float32)[:, None]  # (k, 1)
+    centroid = (V * w).sum(axis=0) / max(w.sum(), 1e-9) # (D,)
+    n = float(np.linalg.norm(centroid))
+    if n < 1e-9:
+        return None, 0
+    return centroid / n, len(vecs)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Recommendation engine
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -376,12 +423,22 @@ class RecommendationEngine:
             filtered = raw_results
             relaxed = True
 
-        # Step 2c: Citation boost — journals cited in the user's references
-        # are statistically much better fits (topical alignment + editor signal).
+        # Step 2c: Topical-cluster reranking from references
+        # ──────────────────────────────────────────────────
+        # Instead of per-citation boosting (which creates winner-take-all
+        # dynamics and can demote already-correct top-1 results), we build a
+        # CENTROID from the embeddings of cited journals and boost candidates
+        # by their similarity to that centroid. This:
+        #   • preserves plurality — neighborhoods of similar journals get lifted together
+        #   • generalizes — boosts journals NOT cited but topically close to ones that were
+        #   • bounds the effect — cosine similarity is in [0,1], no runaway boosts
+        # A small explicit-citation bonus is added on top so journals literally
+        # cited still receive a modest extra nudge, capped to prevent dominance.
         t0 = time.time()
         cite_counts = {}
         refs_parsed = 0
         refs_matched = 0
+        cluster_size = 0
         if constraints.references and constraints.references.strip():
             try:
                 idx = self._get_journal_index()
@@ -389,22 +446,49 @@ class RecommendationEngine:
                     constraints.references, idx
                 )
                 if cite_counts:
+                    centroid, cluster_size = build_reference_centroid(cite_counts, self.store)
+
+                    # Tunable parameters (kept here for easy tweaking / ablation)
+                    TOPICAL_ALPHA      = 0.35    # max topical boost magnitude
+                    TOPICAL_THRESHOLD  = 0.30    # below this similarity, no boost (no penalty either)
+                    EXPLICIT_ALPHA     = 0.05    # per-citation bonus, on top of topical
+                    EXPLICIT_CAP       = 5       # explicit bonus saturates at 5 cites
+
                     for r in filtered:
                         jid = r["journal"].get("id")
                         cites = cite_counts.get(jid, 0)
                         r["cited_count"] = cites
-                        if cites > 0:
-                            # Multiplicative boost: +20% per cite, capped at 2x
-                            boost = min(1.0 + 0.20 * cites, 2.0)
+                        r["cluster_size"] = cluster_size
+
+                        # Topical boost: cosine sim to centroid (vectors already normalized)
+                        topical_sim = 0.0
+                        if centroid is not None:
+                            pos = self.store.id_to_idx.get(int(jid)) if jid is not None else None
+                            if pos is not None:
+                                topical_sim = float(np.dot(self.store.embeddings[pos], centroid))
+                                topical_sim = max(0.0, topical_sim)  # clamp negatives
+                        r["topical_score"] = round(topical_sim, 4)
+
+                        # Apply boost only above threshold (avoids shaping noise)
+                        topical_factor = 0.0
+                        if topical_sim >= TOPICAL_THRESHOLD:
+                            # Linear from 0 at threshold up to TOPICAL_ALPHA at 1.0
+                            normalized = (topical_sim - TOPICAL_THRESHOLD) / max(1e-9, 1.0 - TOPICAL_THRESHOLD)
+                            topical_factor = TOPICAL_ALPHA * normalized
+                        explicit_factor = EXPLICIT_ALPHA * min(cites, EXPLICIT_CAP)
+
+                        boost = 1.0 + topical_factor + explicit_factor
+                        if boost > 1.0:
                             r["score"] = r["score"] * boost
                             r["citation_boost"] = round(boost, 3)
+
                     filtered.sort(key=lambda x: x["score"], reverse=True)
                     log.info(
-                        f"Citation boost: parsed {refs_parsed} refs, "
-                        f"matched {refs_matched} ({len(cite_counts)} unique journals)"
+                        f"Topical rerank: parsed {refs_parsed} refs, matched {refs_matched} "
+                        f"({len(cite_counts)} unique journals → centroid from {cluster_size} embeddings)"
                     )
             except Exception as e:
-                log.warning(f"Citation boost failed (non-fatal): {e}")
+                log.warning(f"Topical rerank failed (non-fatal): {e}")
         timing["citation_ms"] = int((time.time() - t0) * 1000)
 
         # Step 3: LLM re-rank (10 candidates for better selection)
@@ -435,6 +519,7 @@ class RecommendationEngine:
             "references_parsed": refs_parsed,
             "references_matched": refs_matched,
             "unique_journals_cited": len(cite_counts),
+            "topical_cluster_size": cluster_size,
         }
 
     def _build_query_text(self, abstract, constraints):
@@ -531,9 +616,12 @@ class RecommendationEngine:
             j = r["journal"]
             idx = (["PubMed"] if j.get("indexed_pubmed") else []) + (["DOAJ"] if j.get("in_doaj") else [])
             cited = r.get("cited_count", 0)
+            topical = r.get("topical_score", 0.0)
             reasons = [f"Similarity: {r['score']:.3f}", f"Subjects: {', '.join(j.get('subject_categories', [])[:3]) or 'N/A'}"]
             if cited > 0:
-                reasons.insert(0, f"Cited {cited}× in your references — strong topical fit")
+                reasons.insert(0, f"Cited {cited}× in your references")
+            elif topical >= 0.5:
+                reasons.insert(0, f"Topically aligned with your references (sim={topical:.2f})")
             recs.append(Recommendation(
                 rank=rank, journal_id=j.get("id", 0), journal_name=j.get("title", "?"), publisher=j.get("publisher", "?"),
                 issn=j.get("issn", j.get("electronic_issn", "")), oa_model=j.get("oa_model", "?"),
@@ -545,6 +633,7 @@ class RecommendationEngine:
                 impact_factor=str(j.get("two_yr_mean_citedness", "?")),
                 acceptance_rate="N/A", review_time="N/A", homepage=j.get("homepage", ""),
                 cited_count=cited, citation_boost=r.get("citation_boost", 1.0),
+                topical_score=topical, cluster_size=0,
             ))
         return recs
 
@@ -567,6 +656,7 @@ class RecommendationEngine:
                 "h_index": j.get("h_index", "Unknown"),
                 "indexing": [], "similarity": round(r["score"], 4),
                 "cited_in_user_refs": r.get("cited_count", 0),
+                "topical_alignment": round(r.get("topical_score", 0.0), 3),
             }
             if j.get("indexed_pubmed"): d["indexing"].append("PubMed")
             if j.get("in_doaj"): d["indexing"].append("DOAJ")
@@ -599,11 +689,14 @@ RULES — MANUSCRIPT SECTIONS:
 - Use ALL provided sections to assess fit. Methods help match methodology-focused journals. Results help match journals that publish similar evidence types.
 - Weigh scope fit (abstract + intro/conclusion) highest, then methodology fit, then evidence type.
 
-RULES — REFERENCES SIGNAL ("cited_in_user_refs"):
-- If a candidate has cited_in_user_refs > 0, the user has already cited that journal in their manuscript. This is a strong positive signal of topical alignment AND a known editor preference (editors favor papers that cite their own journal).
-- When two candidates are otherwise comparable in scope/quality fit, strongly prefer the one with higher cited_in_user_refs.
-- Do NOT promote a candidate purely on citations if scope clearly mismatches — a single tangential citation is not enough.
-- When recommending a candidate with cited_in_user_refs > 0, mention it explicitly in `reasons` (e.g. "Cited 4× in your references — strong topical fit and editor signal").
+RULES — REFERENCES SIGNAL (two related fields):
+- "cited_in_user_refs": how many times the user explicitly cited THIS journal.
+- "topical_alignment" (0..1): cosine similarity to the centroid of journals the user cites — a measure of how well this candidate fits the user's overall topical neighborhood, EVEN if it was not cited directly.
+- The intent is to surface a NEIGHBORHOOD of related journals, not just one. Treat both signals as positive evidence; do NOT use them to manufacture a winner.
+- Strong positive: topical_alignment ≥ 0.5 AND/OR cited_in_user_refs ≥ 2 — mention this in reasons (e.g. "Topically aligned with the user's reference cluster" or "Cited 4× in user's references").
+- Mild positive: topical_alignment 0.3–0.5 — worth noting briefly.
+- Do NOT promote a candidate purely on these signals if scope clearly mismatches the abstract.
+- Do NOT collapse the top results onto a single journal even when one has high cited_in_user_refs; keep diversity within the topical cluster so the user has real options to choose from.
 
 Respond ONLY with valid JSON (no markdown, no backticks):
 {
@@ -701,6 +794,8 @@ Select the top {num_results}. For EVERY journal: state publishing model (especia
                     homepage=cj.get("homepage", ""),
                     cited_count=cr.get("cited_count", 0) if isinstance(cr, dict) else 0,
                     citation_boost=cr.get("citation_boost", 1.0) if isinstance(cr, dict) else 1.0,
+                    topical_score=cr.get("topical_score", 0.0) if isinstance(cr, dict) else 0.0,
+                    cluster_size=cr.get("cluster_size", 0) if isinstance(cr, dict) else 0,
                 ))
 
             # Post-filter APC-free
