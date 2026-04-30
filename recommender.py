@@ -369,7 +369,49 @@ class RecommendationEngine:
         query_embedding = self.embedder.embed_query(query_text)
         timing["embed_ms"] = int((time.time() - t0) * 1000)
 
-        # Step 1: Vector search (all journals)
+        # Step 0b: Citation-graph query displacement
+        # ──────────────────────────────────────────
+        # Build a centroid from the embeddings of journals the user cites, then
+        # shift the query embedding partway toward it BEFORE retrieval. This
+        # gives the references signal differential influence (not a uniform
+        # boost across the cluster) and shapes both retrieval and ranking with
+        # one principled operation. Set DISPLACEMENT_BETA = 0.0 to disable.
+        t0 = time.time()
+        cite_counts = {}
+        refs_parsed = 0
+        refs_matched = 0
+        cluster_size = 0
+        centroid = None
+        DISPLACEMENT_BETA = 0.20  # 0.0 = pure abstract, 1.0 = pure citations
+
+        if constraints.references and constraints.references.strip():
+            try:
+                idx = self._get_journal_index()
+                cite_counts, refs_parsed, refs_matched = build_citation_map(
+                    constraints.references, idx
+                )
+                if cite_counts:
+                    centroid, cluster_size = build_reference_centroid(cite_counts, self.store)
+                    if centroid is not None and DISPLACEMENT_BETA > 0:
+                        # Normalize the abstract query so the interpolation is dimensionally clean
+                        q = np.asarray(query_embedding, dtype=np.float32)
+                        qn = float(np.linalg.norm(q))
+                        if qn > 1e-9:
+                            q_unit = q / qn
+                            displaced = (1.0 - DISPLACEMENT_BETA) * q_unit + DISPLACEMENT_BETA * centroid
+                            dn = float(np.linalg.norm(displaced))
+                            if dn > 1e-9:
+                                displaced = displaced / dn
+                                query_embedding = displaced.tolist()
+                                log.info(
+                                    f"Query displaced toward {cluster_size}-journal citation cluster "
+                                    f"(β={DISPLACEMENT_BETA}, refs_parsed={refs_parsed}, refs_matched={refs_matched})"
+                                )
+            except Exception as e:
+                log.warning(f"Query displacement failed (non-fatal): {e}")
+        timing["citation_ms"] = int((time.time() - t0) * 1000)
+
+        # Step 1: Vector search (with possibly-displaced query)
         t0 = time.time()
         search_k = candidate_pool if candidate_pool > 0 else len(self.store.ids)
         raw_results = self.store.search(query_embedding, top_k=search_k)
@@ -423,73 +465,27 @@ class RecommendationEngine:
             filtered = raw_results
             relaxed = True
 
-        # Step 2c: Topical-cluster reranking from references
-        # ──────────────────────────────────────────────────
-        # Instead of per-citation boosting (which creates winner-take-all
-        # dynamics and can demote already-correct top-1 results), we build a
-        # CENTROID from the embeddings of cited journals and boost candidates
-        # by their similarity to that centroid. This:
-        #   • preserves plurality — neighborhoods of similar journals get lifted together
-        #   • generalizes — boosts journals NOT cited but topically close to ones that were
-        #   • bounds the effect — cosine similarity is in [0,1], no runaway boosts
-        # A small explicit-citation bonus is added on top so journals literally
-        # cited still receive a modest extra nudge, capped to prevent dominance.
-        t0 = time.time()
-        cite_counts = {}
-        refs_parsed = 0
-        refs_matched = 0
-        cluster_size = 0
-        if constraints.references and constraints.references.strip():
+        # Step 2c: Annotate candidates with citation/topical info (no boost)
+        # ─────────────────────────────────────────────────────────────────
+        # The query displacement (Step 0b) has already shaped the ranking.
+        # Here we just attach explanatory fields so the UI and LLM rerank
+        # can show "Cited Nx" / "Topically aligned" reasons.
+        if cite_counts and centroid is not None:
             try:
-                idx = self._get_journal_index()
-                cite_counts, refs_parsed, refs_matched = build_citation_map(
-                    constraints.references, idx
-                )
-                if cite_counts:
-                    centroid, cluster_size = build_reference_centroid(cite_counts, self.store)
-
-                    # Tunable parameters (kept here for easy tweaking / ablation)
-                    TOPICAL_ALPHA      = 0.35    # max topical boost magnitude
-                    TOPICAL_THRESHOLD  = 0.30    # below this similarity, no boost (no penalty either)
-                    EXPLICIT_ALPHA     = 0.05    # per-citation bonus, on top of topical
-                    EXPLICIT_CAP       = 5       # explicit bonus saturates at 5 cites
-
-                    for r in filtered:
-                        jid = r["journal"].get("id")
-                        cites = cite_counts.get(jid, 0)
-                        r["cited_count"] = cites
-                        r["cluster_size"] = cluster_size
-
-                        # Topical boost: cosine sim to centroid (vectors already normalized)
-                        topical_sim = 0.0
-                        if centroid is not None:
-                            pos = self.store.id_to_idx.get(int(jid)) if jid is not None else None
-                            if pos is not None:
-                                topical_sim = float(np.dot(self.store.embeddings[pos], centroid))
-                                topical_sim = max(0.0, topical_sim)  # clamp negatives
-                        r["topical_score"] = round(topical_sim, 4)
-
-                        # Apply boost only above threshold (avoids shaping noise)
-                        topical_factor = 0.0
-                        if topical_sim >= TOPICAL_THRESHOLD:
-                            # Linear from 0 at threshold up to TOPICAL_ALPHA at 1.0
-                            normalized = (topical_sim - TOPICAL_THRESHOLD) / max(1e-9, 1.0 - TOPICAL_THRESHOLD)
-                            topical_factor = TOPICAL_ALPHA * normalized
-                        explicit_factor = EXPLICIT_ALPHA * min(cites, EXPLICIT_CAP)
-
-                        boost = 1.0 + topical_factor + explicit_factor
-                        if boost > 1.0:
-                            r["score"] = r["score"] * boost
-                            r["citation_boost"] = round(boost, 3)
-
-                    filtered.sort(key=lambda x: x["score"], reverse=True)
-                    log.info(
-                        f"Topical rerank: parsed {refs_parsed} refs, matched {refs_matched} "
-                        f"({len(cite_counts)} unique journals → centroid from {cluster_size} embeddings)"
-                    )
+                for r in filtered:
+                    jid = r["journal"].get("id")
+                    cites = cite_counts.get(jid, 0)
+                    r["cited_count"] = cites
+                    r["cluster_size"] = cluster_size
+                    r["citation_boost"] = 1.0  # no longer used; kept for response stability
+                    # Topical similarity to centroid — purely informational now
+                    topical_sim = 0.0
+                    pos = self.store.id_to_idx.get(int(jid)) if jid is not None else None
+                    if pos is not None:
+                        topical_sim = max(0.0, float(np.dot(self.store.embeddings[pos], centroid)))
+                    r["topical_score"] = round(topical_sim, 4)
             except Exception as e:
-                log.warning(f"Topical rerank failed (non-fatal): {e}")
-        timing["citation_ms"] = int((time.time() - t0) * 1000)
+                log.warning(f"Annotation failed (non-fatal): {e}")
 
         # Step 3: LLM re-rank (10 candidates for better selection)
         t0 = time.time()
