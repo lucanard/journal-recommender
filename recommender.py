@@ -760,6 +760,13 @@ Select the top {num_results}. For EVERY journal: state publishing model (especia
 
         try:
             response = self.llm.create_message(system_prompt, user_msg)
+            # If the LLM client tracks which model was used (Gemini does),
+            # surface "llm_fallback_model" so the UI can softly inform the user.
+            try:
+                if getattr(self.llm, "last_model_used", None) == "fallback":
+                    self._last_rerank_mode = "llm_fallback_model"
+            except Exception:
+                pass
             cleaned = response.strip()
             cleaned = re.sub(r'^```(?:json)?\s*', '', cleaned)
             cleaned = re.sub(r'\s*```$', '', cleaned)
@@ -863,18 +870,69 @@ class OpenAILLM:
 
 
 class GeminiLLM:
-    def __init__(self, api_key, model="gemini-2.5-flash"):
-        self.api_key = api_key; self.model = model
+    """
+    Gemini client with two layers of resilience:
+      Layer 1 — Retries on transient HTTP errors (429/500/502/503/504) with
+                exponential backoff + jitter. Catches the common case of a
+                brief overload window.
+      Layer 2 — If the primary model fails ALL retries, falls back to a
+                less-popular fallback model (default: gemini-2.5-flash-lite).
+                Different infrastructure, almost never overloaded. Output
+                quality is a notch lower but vastly better than heuristic mode.
+
+    Set fallback_model=None to disable Layer 2.
+
+    After each successful call, `self.last_model_used` is set to whichever
+    model actually answered ("primary" or "fallback").
+    """
+    def __init__(self, api_key, model="gemini-2.5-flash",
+                 fallback_model="gemini-2.5-flash-lite"):
+        self.api_key = api_key
+        self.model = model
+        self.fallback_model = fallback_model
+        self.last_model_used = None  # "primary" | "fallback" | None
+
     def create_message(self, system, user_msg):
+        # Try primary model with retries first
+        try:
+            text = self._call_model(self.model, system, user_msg)
+            self.last_model_used = "primary"
+            return text
+        except Exception as primary_err:
+            if not self.fallback_model:
+                raise
+            log.warning(
+                f"Gemini primary model '{self.model}' exhausted retries: {primary_err}. "
+                f"Falling back to '{self.fallback_model}'."
+            )
+            try:
+                text = self._call_model(self.fallback_model, system, user_msg)
+                self.last_model_used = "fallback"
+                log.info(f"Gemini fallback model '{self.fallback_model}' succeeded.")
+                return text
+            except Exception as fallback_err:
+                # Both models down — re-raise the more informative error
+                log.error(
+                    f"Gemini fallback model '{self.fallback_model}' also failed: {fallback_err}"
+                )
+                raise
+
+    def _call_model(self, model_name, system, user_msg):
+        """Call a specific Gemini model with retry-on-transient-error."""
         import time as _time
         import random as _random
         from urllib.request import urlopen, Request
         from urllib.error import HTTPError, URLError
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+               f"{model_name}:generateContent?key={self.api_key}")
         payload = json.dumps({
             "system_instruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
-            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 65536, "thinkingConfig": {"thinkingBudget": 1024}}
+            "generationConfig": {
+                "temperature": 0.3,
+                "maxOutputTokens": 65536,
+                "thinkingConfig": {"thinkingBudget": 1024},
+            },
         }).encode()
         # Retryable failures (transient server-side or rate-limit)
         # 429 = rate limited; 500 = internal; 502 = bad gateway; 503 = overloaded; 504 = timeout
@@ -883,13 +941,16 @@ class GeminiLLM:
         last_err = None
         for attempt in range(MAX_ATTEMPTS):
             try:
-                req = Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+                req = Request(url, data=payload,
+                              headers={"Content-Type": "application/json"},
+                              method="POST")
                 with urlopen(req, timeout=90) as resp:
                     result = json.loads(resp.read().decode())
                 cands = result.get("candidates", [])
                 if cands:
                     parts = cands[0].get("content", {}).get("parts", [])
-                    return " ".join(p.get("text", "") for p in parts if "thought" not in p and p.get("text"))
+                    return " ".join(p.get("text", "") for p in parts
+                                     if "thought" not in p and p.get("text"))
                 return ""
             except HTTPError as e:
                 last_err = e
@@ -898,24 +959,23 @@ class GeminiLLM:
                     base = 2 ** attempt
                     wait = base + _random.uniform(0, 1.0)
                     log.warning(
-                        f"Gemini HTTP {e.code} ({_brief_reason(e.code)}). "
+                        f"Gemini[{model_name}] HTTP {e.code} ({_brief_reason(e.code)}). "
                         f"Retrying in {wait:.1f}s... (attempt {attempt+1}/{MAX_ATTEMPTS})"
                     )
                     _time.sleep(wait)
                 else:
-                    # Non-retryable, or out of attempts
                     raise
             except URLError as e:
-                # Network-level failures (DNS, connection refused, etc.) — retry
                 last_err = e
                 if attempt < MAX_ATTEMPTS - 1:
                     wait = 2 ** attempt + _random.uniform(0, 1.0)
-                    log.warning(f"Gemini network error: {e}. Retrying in {wait:.1f}s...")
+                    log.warning(f"Gemini[{model_name}] network error: {e}. "
+                                f"Retrying in {wait:.1f}s...")
                     _time.sleep(wait)
                 else:
                     raise
-        # Shouldn't reach here, but just in case
-        raise Exception(f"Gemini failed after {MAX_ATTEMPTS} retries. Last error: {last_err}")
+        raise Exception(f"Gemini[{model_name}] failed after {MAX_ATTEMPTS} retries. "
+                        f"Last error: {last_err}")
 
 
 def _brief_reason(code: int) -> str:
