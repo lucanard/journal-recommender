@@ -280,6 +280,11 @@ class JournalRecommendation(BaseModel):
     subjects: list[str] = []
     impact_proxy: Optional[str] = ""
     homepage: Optional[str] = ""
+    # Citation-graph signals (added with references-as-signal feature)
+    cited_count: int = 0          # times this journal appears in user's references
+    citation_boost: float = 1.0   # legacy, retained for response stability
+    topical_score: float = 0.0    # cosine sim to centroid of cited journals (0..1)
+    cluster_size: int = 0         # how many cited journals defined the centroid
 
 
 class RecommendResponse(BaseModel):
@@ -289,6 +294,14 @@ class RecommendResponse(BaseModel):
     candidates_searched: int
     candidates_after_filter: int
     constraints_relaxed: bool = False
+    # Citation-graph metadata (added with references-as-signal feature)
+    references_parsed: int = 0
+    references_matched: int = 0
+    unique_journals_cited: int = 0
+    topical_cluster_size: int = 0
+    # Tells the UI which path produced these results — see recommender.py
+    # for the full list of values.
+    rerank_mode: str = "llm"
 
 
 class HealthResponse(BaseModel):
