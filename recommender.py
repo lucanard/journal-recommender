@@ -489,6 +489,7 @@ class RecommendationEngine:
 
         # Step 3: LLM re-rank (10 candidates for better selection)
         t0 = time.time()
+        self._last_rerank_mode = "heuristic"  # default
         if self.llm and len(filtered) > 0:
             recs, summary = self._llm_rerank(abstract, constraints, filtered[:10], num_results)
         else:
@@ -516,6 +517,11 @@ class RecommendationEngine:
             "references_matched": refs_matched,
             "unique_journals_cited": len(cite_counts),
             "topical_cluster_size": cluster_size,
+            # rerank_mode tells the UI whether the user is getting full LLM-ranked
+            # results ("llm"), simplified heuristic results because LLM was disabled
+            # ("heuristic"), or simplified results because the LLM failed
+            # ("heuristic_fallback"). Frontend should warn the user in the latter case.
+            "rerank_mode": self._last_rerank_mode,
         }
 
     def _build_query_text(self, abstract, constraints):
@@ -638,6 +644,7 @@ class RecommendationEngine:
         return f"Top match: {recs[0].journal_name}. Enable LLM for detailed analysis."
 
     def _llm_rerank(self, abstract, constraints, candidates, num_results):
+        self._last_rerank_mode = "llm"  # set to "heuristic_fallback" if we fall back
         # Build candidate descriptions
         cands = []
         for i, r in enumerate(candidates, 1):
@@ -823,6 +830,7 @@ Select the top {num_results}. For EVERY journal: state publishing model (especia
             try: log.error(f"Raw response: {response[:500]}")
             except: pass
             log.info("Falling back to heuristic")
+            self._last_rerank_mode = "heuristic_fallback"
             return self._heuristic_rank(candidates, num_results), self._generate_summary_heuristic(abstract, [])
 
 
@@ -859,15 +867,21 @@ class GeminiLLM:
         self.api_key = api_key; self.model = model
     def create_message(self, system, user_msg):
         import time as _time
+        import random as _random
         from urllib.request import urlopen, Request
-        from urllib.error import HTTPError
+        from urllib.error import HTTPError, URLError
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
         payload = json.dumps({
             "system_instruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
             "generationConfig": {"temperature": 0.3, "maxOutputTokens": 65536, "thinkingConfig": {"thinkingBudget": 1024}}
         }).encode()
-        for attempt in range(5):
+        # Retryable failures (transient server-side or rate-limit)
+        # 429 = rate limited; 500 = internal; 502 = bad gateway; 503 = overloaded; 504 = timeout
+        RETRY_CODES = {429, 500, 502, 503, 504}
+        MAX_ATTEMPTS = 5
+        last_err = None
+        for attempt in range(MAX_ATTEMPTS):
             try:
                 req = Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
                 with urlopen(req, timeout=90) as resp:
@@ -878,9 +892,37 @@ class GeminiLLM:
                     return " ".join(p.get("text", "") for p in parts if "thought" not in p and p.get("text"))
                 return ""
             except HTTPError as e:
-                if e.code == 429:
-                    w = (attempt + 1) * 15
-                    log.warning(f"Gemini rate limited. Waiting {w}s... ({attempt+1}/5)")
-                    _time.sleep(w)
-                else: raise
-        raise Exception("Gemini rate limit: failed after 5 retries.")
+                last_err = e
+                if e.code in RETRY_CODES and attempt < MAX_ATTEMPTS - 1:
+                    # Exponential backoff with jitter: 1s, 2s, 4s, 8s (+ up to 1s random)
+                    base = 2 ** attempt
+                    wait = base + _random.uniform(0, 1.0)
+                    log.warning(
+                        f"Gemini HTTP {e.code} ({_brief_reason(e.code)}). "
+                        f"Retrying in {wait:.1f}s... (attempt {attempt+1}/{MAX_ATTEMPTS})"
+                    )
+                    _time.sleep(wait)
+                else:
+                    # Non-retryable, or out of attempts
+                    raise
+            except URLError as e:
+                # Network-level failures (DNS, connection refused, etc.) — retry
+                last_err = e
+                if attempt < MAX_ATTEMPTS - 1:
+                    wait = 2 ** attempt + _random.uniform(0, 1.0)
+                    log.warning(f"Gemini network error: {e}. Retrying in {wait:.1f}s...")
+                    _time.sleep(wait)
+                else:
+                    raise
+        # Shouldn't reach here, but just in case
+        raise Exception(f"Gemini failed after {MAX_ATTEMPTS} retries. Last error: {last_err}")
+
+
+def _brief_reason(code: int) -> str:
+    return {
+        429: "rate limited",
+        500: "internal error",
+        502: "bad gateway",
+        503: "model overloaded",
+        504: "timeout",
+    }.get(code, "transient error")
