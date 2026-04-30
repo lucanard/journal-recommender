@@ -11,6 +11,14 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
+# ─── Feature flags ─────────────────────────────────────────────────────────
+# REFERENCES_FEATURE_ENABLED: master switch for the citation-graph signal.
+# When False (default), the API silently ignores the `references` field,
+# query displacement is skipped, and the citation/topical fields stay at
+# their default zero values. The UI hides the textarea and the badges.
+# Flip to True when you're ready to re-enable v2 work.
+REFERENCES_FEATURE_ENABLED = False
+
 
 @dataclass
 class UserConstraints:
@@ -369,8 +377,8 @@ class RecommendationEngine:
         query_embedding = self.embedder.embed_query(query_text)
         timing["embed_ms"] = int((time.time() - t0) * 1000)
 
-        # Step 0b: Citation-graph query displacement
-        # ──────────────────────────────────────────
+        # Step 0b: Citation-graph query displacement (gated by feature flag)
+        # ──────────────────────────────────────────────────────────────────
         # Build a centroid from the embeddings of journals the user cites, then
         # shift the query embedding partway toward it BEFORE retrieval. This
         # gives the references signal differential influence (not a uniform
@@ -384,7 +392,8 @@ class RecommendationEngine:
         centroid = None
         DISPLACEMENT_BETA = 0.20  # 0.0 = pure abstract, 1.0 = pure citations
 
-        if constraints.references and constraints.references.strip():
+        if (REFERENCES_FEATURE_ENABLED
+                and constraints.references and constraints.references.strip()):
             try:
                 idx = self._get_journal_index()
                 cite_counts, refs_parsed, refs_matched = build_citation_map(
