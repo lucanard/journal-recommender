@@ -15,6 +15,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&display=swap" rel="stylesheet"/>
+<!-- Tally embed for institutional inquiry form -->
+<script async src="https://tally.so/widgets/embed.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -26,6 +28,16 @@ textarea,input,select,button{font-family:inherit}
 ::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-track{background:#f1f5f9}
 ::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:3px}
+.legal-content h1{font-size:2rem;font-weight:700;color:#1E3A8A;margin-bottom:1rem}
+.legal-content h2{font-size:1.5rem;font-weight:700;color:#1E3A8A;margin-top:2rem;margin-bottom:0.75rem}
+.legal-content h3{font-size:1.125rem;font-weight:600;color:#1E3A8A;margin-top:1.5rem;margin-bottom:0.5rem}
+.legal-content p{color:#4b5563;line-height:1.7;margin-bottom:1rem}
+.legal-content ul{list-style:disc;padding-left:1.5rem;margin-bottom:1rem;color:#4b5563}
+.legal-content li{margin-bottom:0.5rem;line-height:1.7}
+.legal-content strong{color:#1f2937;font-weight:600}
+.legal-content table{width:100%;border-collapse:collapse;margin-bottom:1rem}
+.legal-content th,.legal-content td{padding:0.5rem;border:1px solid #e5e7eb;text-align:left;font-size:0.875rem}
+.legal-content th{background-color:#f9fafb;font-weight:600}
 </style>
 <script>
 var fbApp=firebase.initializeApp({apiKey:"AIzaSyBlUCteA1d5IvkvfWefYiWePBYlr22BTyQ",authDomain:"pubfit-1a5ad.firebaseapp.com",projectId:"pubfit-1a5ad",storageBucket:"pubfit-1a5ad.firebasestorage.app",messagingSenderId:"344237625270",appId:"1:344237625270:web:c7ad55d9a3e072ea667b17"});
@@ -38,30 +50,75 @@ var fbDb=firebase.firestore();
 <script type="text/babel" data-type="module">
 const {useState,useEffect,useCallback,useRef,createContext,useContext}=React;
 const API=window.location.origin;
-const AuthCtx=createContext({user:null,plan:'anon',loading:true});
+
+/* CONFIG — replace these placeholders before going live */
+const TALLY_FORM_ID='kdO4Vj';        // create form at tally.so → copy form ID from share link
+const CALENDLY_URL='https://calendly.com/info-reviewpro/30min'; // create event type at calendly.com
+const CONTACT_EMAIL='hello@pubfit.ai';
+const PRIVACY_EMAIL='privacy@pubfit.ai';
+
+/* FEATURE FLAGS — keep in sync with recommender.py REFERENCES_FEATURE_ENABLED */
+const REFERENCES_FEATURE_ENABLED=false;
+
+/* AUTH CONTEXT — credits-aware
+ * Firestore schema for users/{uid}:
+ *   email: string
+ *   created: ISO timestamp
+ *   credits: number — current balance
+ *   credits_expire_at: ISO timestamp | null — 1yr from last purchase, null = never had credits
+ *   total_searches: number — lifetime counter
+ *   purchases: [{amount, credits, purchased_at, expires_at, stripe_session_id}]
+ *   accepted_terms_at: ISO timestamp — set on signup
+ */
+const AuthCtx=createContext({user:null,credits:0,creditsExpireAt:null,totalSearches:0,loading:true,refreshUserDoc:()=>{}});
+
+function isExpired(iso){if(!iso)return true;return new Date(iso).getTime()<Date.now();}
 
 function AuthProvider({children}){
   const [user,setUser]=useState(null);
-  const [plan,setPlan]=useState('anon');
+  const [credits,setCredits]=useState(0);
+  const [creditsExpireAt,setCreditsExpireAt]=useState(null);
+  const [totalSearches,setTotalSearches]=useState(0);
   const [loading,setLoading]=useState(true);
+  const refreshUserDoc=useCallback(async(u)=>{
+    if(!u)return;
+    try{
+      const ref=fbDb.collection('users').doc(u.uid);
+      const doc=await ref.get();
+      if(!doc.exists){
+        // First login: create empty profile, no credits
+        await ref.set({email:u.email,created:new Date().toISOString(),credits:0,credits_expire_at:null,total_searches:0,purchases:[]});
+        setCredits(0);setCreditsExpireAt(null);setTotalSearches(0);
+      }else{
+        const d=doc.data();
+        // Migration: if old doc has plan field but no credits, grant 60 credits/1yr to legacy 'premium'
+        if(d.plan&&typeof d.credits==='undefined'){
+          const legacyCredits=d.plan==='premium'?60:0;
+          const expiry=legacyCredits>0?new Date(Date.now()+365*24*3600*1000).toISOString():null;
+          await ref.update({credits:legacyCredits,credits_expire_at:expiry,total_searches:d.searches||0,purchases:[]});
+          setCredits(legacyCredits);setCreditsExpireAt(expiry);setTotalSearches(d.searches||0);
+        }else{
+          setCredits(d.credits||0);
+          setCreditsExpireAt(d.credits_expire_at||null);
+          setTotalSearches(d.total_searches||d.searches||0);
+        }
+      }
+    }catch(e){console.error('Firestore read:',e);setCredits(0);setCreditsExpireAt(null);}
+  },[]);
   useEffect(()=>{
     const unsub=fbAuth.onAuthStateChanged(async(u)=>{
       setUser(u);
-      if(u){
-        try{const doc=await fbDb.collection('users').doc(u.uid).get();if(doc.exists){setPlan(doc.data().plan||'free');}else{await fbDb.collection('users').doc(u.uid).set({plan:'free',email:u.email,created:new Date().toISOString(),searches:0});setPlan('free');}}catch(e){console.error('Firestore:',e);setPlan('free');}
-      }else{setPlan('anon');}
+      if(u){await refreshUserDoc(u);}else{setCredits(0);setCreditsExpireAt(null);setTotalSearches(0);}
       setLoading(false);
     });
-    return ()=>unsub();
-  },[]);
-  return <AuthCtx.Provider value={{user,plan,loading,setPlan}}>{children}</AuthCtx.Provider>;
+    return()=>unsub();
+  },[refreshUserDoc]);
+  const hasCredits=user&&credits>0&&!isExpired(creditsExpireAt);
+  return <AuthCtx.Provider value={{user,credits,creditsExpireAt,totalSearches,hasCredits,loading,refreshUserDoc:()=>refreshUserDoc(user)}}>{children}</AuthCtx.Provider>;
 }
 function useAuth(){return useContext(AuthCtx);}
 function getFreeSearches(){return parseInt(localStorage.getItem('pubfit_searches')||'0');}
 function incFreeSearches(){const n=getFreeSearches()+1;localStorage.setItem('pubfit_searches',String(n));return n;}
-
-/* FEATURE FLAGS — keep in sync with recommender.py REFERENCES_FEATURE_ENABLED */
-const REFERENCES_FEATURE_ENABLED=false;
 
 /* ICONS */
 const I={
@@ -88,46 +145,91 @@ const I={
   LogOut:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>,
   User:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
   Crown:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5.21 16.5h13.58"/></svg>,
+  Coin:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 7v10M9 9.5h4.5a2 2 0 1 1 0 4H9.5a2 2 0 1 0 0 4H14"/></svg>,
+  Building:()=><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></svg>,
 };
 
 function useRouter(){const [path,setPath]=useState(window.location.hash.slice(1)||'/');useEffect(()=>{const h=()=>setPath(window.location.hash.slice(1)||'/');window.addEventListener('hashchange',h);return()=>window.removeEventListener('hashchange',h);},[]);return{path,navigate:useCallback((to)=>{window.location.hash=to;window.scrollTo(0,0);},[])}}
 function Link({to,children,...p}){return <a href={'#'+to} {...p}>{children}</a>;}
 
-/* AUTH MODAL */
+/* AUTH MODAL — with terms checkbox on signup */
 function AuthModal({onClose,initialMode='signup',message}){
-  const [mode,setMode]=useState(initialMode);const [email,setEmail]=useState('');const [pw,setPw]=useState('');const [err,setErr]=useState('');const [busy,setBusy]=useState(false);
-  async function go(e){e.preventDefault();setErr('');setBusy(true);try{if(mode==='signup')await fbAuth.createUserWithEmailAndPassword(email,pw);else await fbAuth.signInWithEmailAndPassword(email,pw);onClose();}catch(er){const m={'auth/email-already-in-use':'Email already registered — try logging in.','auth/weak-password':'Password must be at least 6 characters.','auth/user-not-found':'No account with this email.','auth/wrong-password':'Incorrect password.','auth/invalid-email':'Invalid email.','auth/invalid-credential':'Invalid email or password.'};setErr(m[er.code]||er.message);}finally{setBusy(false);}}
-  async function google(){setErr('');try{await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider());onClose();}catch(er){setErr(er.message);}}
+  const [mode,setMode]=useState(initialMode);const [email,setEmail]=useState('');const [pw,setPw]=useState('');const [agreed,setAgreed]=useState(false);const [err,setErr]=useState('');const [busy,setBusy]=useState(false);
+  async function go(e){
+    e.preventDefault();setErr('');
+    if(mode==='signup'&&!agreed){setErr('You must agree to the Terms and Privacy Policy to create an account.');return;}
+    setBusy(true);
+    try{
+      if(mode==='signup'){
+        const cred=await fbAuth.createUserWithEmailAndPassword(email,pw);
+        // Record acceptance timestamp on user doc
+        try{await fbDb.collection('users').doc(cred.user.uid).set({email,created:new Date().toISOString(),credits:0,credits_expire_at:null,total_searches:0,purchases:[],accepted_terms_at:new Date().toISOString()},{merge:true});}catch(x){console.error('Profile init:',x);}
+      }else{
+        await fbAuth.signInWithEmailAndPassword(email,pw);
+      }
+      onClose();
+    }catch(er){
+      const m={'auth/email-already-in-use':'Email already registered — try logging in.','auth/weak-password':'Password must be at least 6 characters.','auth/user-not-found':'No account with this email.','auth/wrong-password':'Incorrect password.','auth/invalid-email':'Invalid email.','auth/invalid-credential':'Invalid email or password.'};
+      setErr(m[er.code]||er.message);
+    }finally{setBusy(false);}
+  }
+  async function google(){
+    setErr('');
+    if(mode==='signup'&&!agreed){setErr('You must agree to the Terms and Privacy Policy to create an account.');return;}
+    try{
+      const cred=await fbAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+      // For Google signup, set acceptance timestamp if it's a new user
+      if(cred.additionalUserInfo?.isNewUser){
+        try{await fbDb.collection('users').doc(cred.user.uid).set({email:cred.user.email,created:new Date().toISOString(),credits:0,credits_expire_at:null,total_searches:0,purchases:[],accepted_terms_at:new Date().toISOString()},{merge:true});}catch(x){console.error('Profile init:',x);}
+      }
+      onClose();
+    }catch(er){setErr(er.message);}
+  }
   return(<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}><div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 fade-in relative" onClick={e=>e.stopPropagation()}>
     <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><span className="w-5 h-5 text-gray-400"><I.X/></span></button>
     <div className="text-center mb-6"><div className="w-16 h-16 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-xl flex items-center justify-center mx-auto mb-4"><span className="text-white text-2xl font-bold">P</span></div><h2 className="text-2xl font-bold text-[#1E3A8A]">{mode==='signup'?'Create your free account':'Welcome back'}</h2>{message&&<p className="text-gray-600 mt-2 text-sm">{message}</p>}</div>
     <button onClick={google} className="w-full py-3 px-4 border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50 transition-colors flex items-center justify-center gap-3 mb-4"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>Continue with Google</button>
     <div className="relative mb-4"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300"></div></div><div className="relative flex justify-center text-sm"><span className="px-4 bg-white text-gray-500">Or use email</span></div></div>
-    <form onSubmit={go} className="space-y-4"><div><label className="block text-sm font-semibold text-gray-700 mb-1">Email</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@university.edu" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent" required/></div><div><label className="block text-sm font-semibold text-gray-700 mb-1">Password</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder={mode==='signup'?'Min 6 characters':'Password'} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent" required minLength="6"/></div>{err&&<div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{err}</div>}<button type="submit" disabled={busy} className="w-full py-3 bg-[#14B8A6] text-white font-semibold rounded-lg hover:bg-[#0F9B8E] disabled:opacity-60">{busy?'Please wait...':mode==='signup'?'Create Free Account':'Sign In'}</button></form>
+    <form onSubmit={go} className="space-y-4">
+      <div><label className="block text-sm font-semibold text-gray-700 mb-1">Email</label><input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="your@university.edu" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent" required/></div>
+      <div><label className="block text-sm font-semibold text-gray-700 mb-1">Password</label><input type="password" value={pw} onChange={e=>setPw(e.target.value)} placeholder={mode==='signup'?'Min 6 characters':'Password'} className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent" required minLength="6"/></div>
+      {mode==='signup'&&<label className="flex items-start gap-2 text-sm text-gray-600"><input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)} className="mt-1 w-4 h-4 text-[#14B8A6] rounded"/><span>I agree to the <Link to="/terms" className="text-[#14B8A6] hover:underline" onClick={onClose}>Terms of Service</Link> and <Link to="/privacy" className="text-[#14B8A6] hover:underline" onClick={onClose}>Privacy Policy</Link>.</span></label>}
+      {err&&<div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{err}</div>}
+      <button type="submit" disabled={busy} className="w-full py-3 bg-[#14B8A6] text-white font-semibold rounded-lg hover:bg-[#0F9B8E] disabled:opacity-60">{busy?'Please wait...':mode==='signup'?'Create Free Account':'Sign In'}</button>
+    </form>
     <p className="mt-4 text-center text-sm text-gray-600">{mode==='signup'?<>Have an account? <button onClick={()=>{setMode('login');setErr('');}} className="text-[#14B8A6] font-semibold hover:underline">Sign in</button></>:<>No account? <button onClick={()=>{setMode('signup');setErr('');}} className="text-[#14B8A6] font-semibold hover:underline">Sign up free</button></>}</p>
   </div></div>);
 }
 
-/* PREMIUM MODAL */
-function PremiumModal({onClose,feature}){
+/* CREDITS MODAL — shown when feature is gated */
+function CreditsModal({onClose,feature}){
   return(<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}><div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 fade-in relative" onClick={e=>e.stopPropagation()}>
     <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><span className="w-5 h-5 text-gray-400"><I.X/></span></button>
-    <div className="text-center"><div className="w-16 h-16 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-xl flex items-center justify-center mx-auto mb-4"><span className="w-8 h-8 text-white"><I.Crown/></span></div><h2 className="text-2xl font-bold text-[#1E3A8A] mb-2">Upgrade to Premium</h2><p className="text-gray-600 mb-6"><strong>{feature}</strong> is a premium feature.</p>
-    <div className="bg-gray-50 rounded-xl p-6 mb-6 text-left"><p className="font-bold text-[#1E3A8A] mb-3">Premium includes:</p><ul className="space-y-2">{['Up to 10 journal matches','Tailor Your Manuscript (AI guidance)','Advanced filters (APC, IF, indexing, OA)','Downloadable DOCX reports','Priority support'].map((f,i)=><li key={i} className="flex items-center gap-2 text-sm text-gray-700"><span className="w-4 h-4 text-[#14B8A6]"><I.Check/></span>{f}</li>)}</ul></div>
-    <Link to="/pricing" onClick={onClose} className="block w-full py-3 bg-[#14B8A6] text-white font-semibold rounded-lg hover:bg-[#0F9B8E] text-center">View Plans</Link><p className="mt-3 text-xs text-gray-500">From €12/month</p></div>
+    <div className="text-center"><div className="w-16 h-16 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-xl flex items-center justify-center mx-auto mb-4"><span className="w-8 h-8 text-white"><I.Coin/></span></div><h2 className="text-2xl font-bold text-[#1E3A8A] mb-2">Get credits to unlock {feature}</h2><p className="text-gray-600 mb-6">Each credit = one full premium search with all filters, up to 10 results, manuscript tailoring, and DOCX reports.</p>
+    <div className="bg-gray-50 rounded-xl p-6 mb-6 text-left"><p className="font-bold text-[#1E3A8A] mb-3">With credits, every search includes:</p><ul className="space-y-2">{['Up to 10 ranked journal matches','Manuscript tailoring (AI guidance)','Advanced filters (APC, IF, indexing, OA)','Downloadable DOCX reports'].map((f,i)=><li key={i} className="flex items-center gap-2 text-sm text-gray-700"><span className="w-4 h-4 text-[#14B8A6]"><I.Check/></span>{f}</li>)}</ul></div>
+    <Link to="/pricing" onClick={onClose} className="block w-full py-3 bg-[#14B8A6] text-white font-semibold rounded-lg hover:bg-[#0F9B8E] text-center">View credit packs</Link><p className="mt-3 text-xs text-gray-500">From €15 — credits valid 1 year</p></div>
   </div></div>);
+}
+
+/* CREDIT BADGE — shown in nav for logged-in users */
+function CreditBadge({credits,creditsExpireAt}){
+  const expired=isExpired(creditsExpireAt);
+  if(credits<=0||expired)return <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-bold rounded">FREE</span>;
+  const days=Math.ceil((new Date(creditsExpireAt).getTime()-Date.now())/(24*3600*1000));
+  const expiringSoon=days<=30;
+  return(<span className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 ${expiringSoon?'bg-amber-100 text-amber-800':'bg-[#14B8A6]/10 text-[#14B8A6]'}`} title={`Credits expire in ${days} day${days===1?'':'s'} (${new Date(creditsExpireAt).toLocaleDateString()})`}><span className="w-3 h-3"><I.Coin/></span>{credits}</span>);
 }
 
 /* NAV */
 function Navigation({path}){
-  const [open,setOpen]=useState(false);const [showAuth,setShowAuth]=useState(false);const [userMenu,setUserMenu]=useState(false);const {user,plan}=useAuth();const isPro=plan==='premium';
+  const [open,setOpen]=useState(false);const [showAuth,setShowAuth]=useState(false);const [userMenu,setUserMenu]=useState(false);const {user,credits,creditsExpireAt,hasCredits}=useAuth();
   const menuRef=useRef(null);
   useEffect(()=>{if(!userMenu)return;const h=(e)=>{if(menuRef.current&&!menuRef.current.contains(e.target))setUserMenu(false);};document.addEventListener('mousedown',h);return()=>document.removeEventListener('mousedown',h);},[userMenu]);
   const ac=(p)=>path===p?'text-[#1E3A8A]':'text-gray-600 hover:text-[#1E3A8A]';
   return(<nav className="bg-white border-b border-gray-200 sticky top-0 z-50"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="flex justify-between items-center h-16">
     <Link to="/" className="flex items-center gap-2"><div className="w-10 h-10 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-lg flex items-center justify-center"><span className="w-6 h-6 text-white"><I.Sparkles/></span></div><span className="font-bold text-xl text-[#1E3A8A]">PubFit</span></Link>
     <div className="hidden md:flex items-center gap-8"><Link to="/" className={`text-sm font-medium ${ac('/')}`}>Home</Link><Link to="/features" className={`text-sm font-medium ${ac('/features')}`}>Features</Link><Link to="/pricing" className={`text-sm font-medium ${ac('/pricing')}`}>Pricing</Link><Link to="/about" className={`text-sm font-medium ${ac('/about')}`}>About</Link></div>
-    <div className="hidden md:flex items-center gap-3">{user?<div ref={menuRef} className="relative"><button onClick={()=>setUserMenu(!userMenu)} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"><span className="w-4 h-4 text-gray-600"><I.User/></span><span className="text-sm text-gray-700">{user.email?.split('@')[0]}</span>{isPro&&<span className="px-2 py-0.5 bg-[#14B8A6]/10 text-[#14B8A6] text-xs font-bold rounded">PRO</span>}<span className={`w-4 h-4 text-gray-400 transition-transform ${userMenu?'rotate-180':''}`}><I.ChevronDown/></span></button>{userMenu&&<div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"><div className="px-4 py-3 border-b border-gray-100"><p className="text-xs text-gray-500 mb-0.5">Signed in as</p><p className="text-sm font-medium text-gray-900 truncate">{user.email}</p><div className="mt-2 flex items-center gap-2"><span className={`px-2 py-0.5 text-xs font-bold rounded ${isPro?'bg-[#14B8A6]/10 text-[#14B8A6]':'bg-gray-100 text-gray-600'}`}>{isPro?'PRO':'FREE'}</span>{!isPro&&<Link to="/pricing" onClick={()=>setUserMenu(false)} className="text-xs text-[#14B8A6] hover:underline">Upgrade →</Link>}</div></div><Link to="/account" onClick={()=>setUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"><span className="w-4 h-4 text-gray-400"><I.User/></span>Account settings</Link><Link to="/dashboard" onClick={()=>setUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"><span className="w-4 h-4 text-gray-400"><I.Search/></span>New search</Link><div className="border-t border-gray-100 my-1"></div><button onClick={()=>{setUserMenu(false);fbAuth.signOut();}} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"><span className="w-4 h-4"><I.LogOut/></span>Sign out</button></div>}</div>:<><button onClick={()=>setShowAuth('login')} className="text-sm font-medium text-gray-600 hover:text-[#1E3A8A]">Login</button><Link to="/dashboard" className="px-4 py-2 bg-[#14B8A6] text-white text-sm font-medium rounded-lg hover:bg-[#0F9B8E]">Get Started Free</Link></>}</div>
+    <div className="hidden md:flex items-center gap-3">{user?<div ref={menuRef} className="relative"><button onClick={()=>setUserMenu(!userMenu)} className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"><span className="w-4 h-4 text-gray-600"><I.User/></span><span className="text-sm text-gray-700">{user.email?.split('@')[0]}</span><CreditBadge credits={credits} creditsExpireAt={creditsExpireAt}/><span className={`w-4 h-4 text-gray-400 transition-transform ${userMenu?'rotate-180':''}`}><I.ChevronDown/></span></button>{userMenu&&<div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"><div className="px-4 py-3 border-b border-gray-100"><p className="text-xs text-gray-500 mb-0.5">Signed in as</p><p className="text-sm font-medium text-gray-900 truncate">{user.email}</p><div className="mt-2 flex items-center gap-2"><CreditBadge credits={credits} creditsExpireAt={creditsExpireAt}/>{!hasCredits&&<Link to="/pricing" onClick={()=>setUserMenu(false)} className="text-xs text-[#14B8A6] hover:underline">Get credits →</Link>}</div></div><Link to="/account" onClick={()=>setUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"><span className="w-4 h-4 text-gray-400"><I.User/></span>Account settings</Link><Link to="/dashboard" onClick={()=>setUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"><span className="w-4 h-4 text-gray-400"><I.Search/></span>New search</Link><div className="border-t border-gray-100 my-1"></div><button onClick={()=>{setUserMenu(false);fbAuth.signOut();}} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"><span className="w-4 h-4"><I.LogOut/></span>Sign out</button></div>}</div>:<><button onClick={()=>setShowAuth('login')} className="text-sm font-medium text-gray-600 hover:text-[#1E3A8A]">Login</button><Link to="/dashboard" className="px-4 py-2 bg-[#14B8A6] text-white text-sm font-medium rounded-lg hover:bg-[#0F9B8E]">Get Started Free</Link></>}</div>
     <button onClick={()=>setOpen(!open)} className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100">{open?<span className="w-6 h-6"><I.X/></span>:<span className="w-6 h-6"><I.Menu/></span>}</button>
   </div></div>
   {open&&<div className="md:hidden border-t border-gray-200 bg-white px-4 py-4 space-y-3"><Link to="/" className="block py-2 text-sm text-gray-600" onClick={()=>setOpen(false)}>Home</Link><Link to="/features" className="block py-2 text-sm text-gray-600" onClick={()=>setOpen(false)}>Features</Link><Link to="/pricing" className="block py-2 text-sm text-gray-600" onClick={()=>setOpen(false)}>Pricing</Link><Link to="/about" className="block py-2 text-sm text-gray-600" onClick={()=>setOpen(false)}>About</Link>{user?<button onClick={()=>{fbAuth.signOut();setOpen(false);}} className="block py-2 text-sm text-red-600">Sign Out</button>:<Link to="/dashboard" className="block w-full px-4 py-2 bg-[#14B8A6] text-white text-sm rounded-lg text-center" onClick={()=>setOpen(false)}>Get Started</Link>}</div>}
@@ -135,71 +237,88 @@ function Navigation({path}){
   </nav>);
 }
 
-/* FOOTER */
-function Footer(){return(<footer className="bg-[#1E3A8A] text-white"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><div className="grid grid-cols-1 md:grid-cols-4 gap-8"><div className="space-y-4"><div className="flex items-center gap-2"><div className="w-10 h-10 bg-[#14B8A6] rounded-lg flex items-center justify-center"><span className="w-6 h-6 text-white"><I.Sparkles/></span></div><span className="font-bold text-xl">PubFit</span></div><p className="text-sm text-gray-300">AI-powered journal matching for researchers.</p></div><div><h3 className="font-semibold mb-4">Product</h3><ul className="space-y-2"><li><Link to="/features" className="text-sm text-gray-300 hover:text-white">Features</Link></li><li><Link to="/pricing" className="text-sm text-gray-300 hover:text-white">Pricing</Link></li></ul></div><div><h3 className="font-semibold mb-4">Company</h3><ul className="space-y-2"><li><Link to="/about" className="text-sm text-gray-300 hover:text-white">About</Link></li></ul></div><div><h3 className="font-semibold mb-4">Connect</h3><span className="p-2 bg-white/10 rounded-lg inline-block"><span className="w-5 h-5"><I.Mail/></span></span></div></div><div className="mt-8 pt-8 border-t border-white/10 text-center text-sm text-gray-300">&copy; 2026 PubFit</div></div></footer>);}
+/* FOOTER — with legal links and contact */
+function Footer(){return(<footer className="bg-[#1E3A8A] text-white"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+  <div className="space-y-4"><div className="flex items-center gap-2"><div className="w-10 h-10 bg-[#14B8A6] rounded-lg flex items-center justify-center"><span className="w-6 h-6 text-white"><I.Sparkles/></span></div><span className="font-bold text-xl">PubFit</span></div><p className="text-sm text-gray-300">AI-powered journal matching for researchers.</p></div>
+  <div><h3 className="font-semibold mb-4">Product</h3><ul className="space-y-2"><li><Link to="/features" className="text-sm text-gray-300 hover:text-white">Features</Link></li><li><Link to="/pricing" className="text-sm text-gray-300 hover:text-white">Pricing</Link></li><li><Link to="/dashboard" className="text-sm text-gray-300 hover:text-white">Dashboard</Link></li></ul></div>
+  <div><h3 className="font-semibold mb-4">Company</h3><ul className="space-y-2"><li><Link to="/about" className="text-sm text-gray-300 hover:text-white">About</Link></li><li><a href={`mailto:${CONTACT_EMAIL}`} className="text-sm text-gray-300 hover:text-white">Contact</a></li><li><Link to="/pricing#institutional" className="text-sm text-gray-300 hover:text-white">For institutions</Link></li></ul></div>
+  <div><h3 className="font-semibold mb-4">Legal</h3><ul className="space-y-2"><li><Link to="/privacy" className="text-sm text-gray-300 hover:text-white">Privacy Policy</Link></li><li><Link to="/terms" className="text-sm text-gray-300 hover:text-white">Terms of Service</Link></li></ul></div>
+</div><div className="mt-8 pt-8 border-t border-white/10 text-center text-sm text-gray-300">&copy; 2026 PubFit. All rights reserved.</div></div></footer>);}
 
 /* HOME */
 function HomePage(){
 const {user,loading}=useAuth();
-// Logged-in users skip the marketing page entirely → straight to dashboard
 useEffect(()=>{if(user)window.location.hash='/dashboard';},[user]);
 if(loading||user)return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 text-[#14B8A6]"><I.Loader/></div></div>;
 return(<div className="bg-white">
 <section className="relative bg-gradient-to-br from-[#1E3A8A] via-[#1E3A8A] to-[#14B8A6] text-white overflow-hidden"><div className="absolute inset-0 opacity-10"><div className="absolute top-20 left-20 w-72 h-72 bg-white rounded-full blur-3xl"></div><div className="absolute bottom-20 right-20 w-96 h-96 bg-[#14B8A6] rounded-full blur-3xl"></div></div><div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24"><div className="text-center max-w-4xl mx-auto fade-in"><h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">Submit Smarter: AI Journal Recommendations + Manuscript Tailoring</h1><p className="text-xl md:text-2xl text-gray-100 mb-8">Paste your abstract → Get perfectly matched journals + journal-specific guidance.</p><div className="flex flex-wrap justify-center gap-8 mb-10"><div className="flex items-center gap-2"><span className="w-5 h-5 text-[#14B8A6]"><I.Check/></span><span className="text-sm">First search free — no signup</span></div><div className="flex items-center gap-2"><span className="w-5 h-5 text-[#14B8A6]"><I.Check/></span><span className="text-sm">Neutral &amp; cross-publisher</span></div><div className="flex items-center gap-2"><span className="w-5 h-5 text-[#14B8A6]"><I.Check/></span><span className="text-sm">9,300+ journals</span></div></div><div className="flex flex-col sm:flex-row gap-4 justify-center"><Link to="/dashboard" className="px-8 py-4 bg-[#14B8A6] text-white text-lg font-semibold rounded-lg hover:bg-[#0F9B8E] flex items-center justify-center gap-2">Try for Free <span className="w-5 h-5"><I.ArrowRight/></span></Link><Link to="/pricing" className="px-8 py-4 bg-white text-[#1E3A8A] text-lg font-semibold rounded-lg hover:bg-gray-100">View Pricing</Link></div></div></div></section>
-<section className="py-20 bg-gray-50"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="text-center mb-16"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-4">How It Works</h2></div><div className="grid md:grid-cols-3 gap-8">{[{n:'1',t:'Input Your Abstract',d:'Paste your abstract — first search is free, no signup needed.',b:'Free'},{n:'2',t:'Get Ranked Matches',d:'AI-powered recommendations ranked by fit with explanations.',b:'Free: 3 | Premium: up to 10'},{n:'3',t:'Tailor Your Manuscript',d:'Journal-specific title suggestions, cover letter tips, reviewer concerns.',b:'Premium ⭐',hl:true}].map(s=><div key={s.n} className={`bg-white p-8 rounded-xl shadow-sm border ${s.hl?'border-2 border-[#14B8A6]':'border-gray-200'}`}><div className="w-12 h-12 bg-[#14B8A6] rounded-lg flex items-center justify-center mb-6"><span className="text-white font-bold text-xl">{s.n}</span></div><h3 className="text-xl font-bold text-[#1E3A8A] mb-3">{s.t}</h3><p className="text-gray-600 mb-4">{s.d}</p><span className="text-sm text-[#14B8A6] font-semibold">{s.b}</span></div>)}</div></div></section>
+<section className="py-20 bg-gray-50"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="text-center mb-16"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-4">How It Works</h2></div><div className="grid md:grid-cols-3 gap-8">{[{n:'1',t:'Input Your Abstract',d:'Paste your abstract — first search is free, no signup needed.',b:'Free'},{n:'2',t:'Get Ranked Matches',d:'AI-powered recommendations ranked by fit with explanations.',b:'Free: 3 | With credits: up to 10'},{n:'3',t:'Tailor Your Manuscript',d:'Journal-specific title suggestions, cover letter tips, reviewer concerns.',b:'Premium ⭐',hl:true}].map(s=><div key={s.n} className={`bg-white p-8 rounded-xl shadow-sm border ${s.hl?'border-2 border-[#14B8A6]':'border-gray-200'}`}><div className="w-12 h-12 bg-[#14B8A6] rounded-lg flex items-center justify-center mb-6"><span className="text-white font-bold text-xl">{s.n}</span></div><h3 className="text-xl font-bold text-[#1E3A8A] mb-3">{s.t}</h3><p className="text-gray-600 mb-4">{s.d}</p><span className="text-sm text-[#14B8A6] font-semibold">{s.b}</span></div>)}</div></div></section>
 <section className="py-20 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"><div className="grid md:grid-cols-3 gap-12 text-center"><div><div className="text-4xl font-bold mb-2">50%</div><p className="text-gray-100">Desk rejections avoided</p></div><div><div className="text-4xl font-bold mb-2">10x</div><p className="text-gray-100">Faster than manual search</p></div><div><div className="text-4xl font-bold mb-2">9,300+</div><p className="text-gray-100">Journals</p></div></div></div></section>
 <section className="py-20"><div className="max-w-4xl mx-auto px-4 text-center"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-6">Ready to Find Your Perfect Journal?</h2><Link to="/dashboard" className="px-8 py-4 bg-[#14B8A6] text-white text-lg font-semibold rounded-lg hover:bg-[#0F9B8E] inline-block">Start Free Search</Link></div></section>
 </div>);}
 
 /* DASHBOARD */
 function DashboardPage(){
-  const {user,plan}=useAuth();const isPremium=plan==='premium';
+  const {user,credits,hasCredits,refreshUserDoc}=useAuth();
   const [abs,setAbs]=useState('');const [kw,setKw]=useState('');const [ic,setIc]=useState('');const [mt,setMt]=useState('');const [rs,setRs]=useState('');const [refs,setRefs]=useState('');
   const [at,setAt]=useState('Original Research');const [disc,setDisc]=useState('Any');const [oa,setOa]=useState('Any');const [apcF,setApcF]=useState(false);const [maxA,setMaxA]=useState('');const [minI,setMinI]=useState('');const [ti,setTi]=useState('');const [idx,setIdx]=useState([]);const [nr,setNr]=useState(3);
   const [busy,setBusy]=useState(false);const [err,setErr]=useState('');const [res,setRes]=useState(null);const [sf,setSf]=useState(false);const [sm,setSm]=useState(false);
   const [tj,setTj]=useState(null);const [td,setTd]=useState(null);const [tl,setTl]=useState(false);
-  const [showAuth,setShowAuth]=useState(false);const [authMsg,setAuthMsg]=useState('');const [showPrem,setShowPrem]=useState(false);const [premFeat,setPremFeat]=useState('');
+  const [showAuth,setShowAuth]=useState(false);const [authMsg,setAuthMsg]=useState('');const [showCredits,setShowCredits]=useState(false);const [creditFeat,setCreditFeat]=useState('');
   const rRef=useRef(null);
   const AT=["Original Research","Review Article","Systematic Review","Meta-Analysis","Case Report","Case Series","Short Communication / Brief Report","Letter to the Editor","Editorial","Commentary / Opinion","Perspective","Methods / Protocols","Technical Note","Book Review","Conference Paper","Data Paper / Data Article"];
   const DS=["Any","Agricultural Sciences","Biochemistry & Molecular Biology","Biomedical Engineering","Chemistry","Clinical Medicine","Computer Science & AI","Earth & Environmental Sciences","Ecology & Evolution","Economics & Business","Education","Engineering","Epidemiology & Public Health","Food Science & Nutrition","Genetics & Genomics","Humanities & Social Sciences","Immunology","Law","Materials Science","Mathematics & Statistics","Microbiology","Neuroscience","Nursing & Health Professions","Pharmacology & Toxicology","Physics & Astronomy","Psychology & Psychiatry","Veterinary Science","Other"];
   const IX=["PubMed/MEDLINE","DOAJ","Scopus","Web of Science","Embase","PsycINFO","CINAHL","ERIC","EconLit","MathSciNet","zbMATH","Chemical Abstracts Service (CAS)","Inspec","GeoRef","AGRIS","Emerging Sources Citation Index (ESCI)","SCImago (SJR)"];
-  function needPrem(f){setPremFeat(f);setShowPrem(true);}
+  function needCredits(f){setCreditFeat(f);setShowCredits(true);}
   async function doSearch(e){
     e.preventDefault();if(abs.length<50){setErr('Abstract must be at least 50 characters.');return;}
     if(!user&&getFreeSearches()>=1){setAuthMsg('Sign up for free to continue searching. Your first search was on us!');setShowAuth(true);return;}
     setErr('');setBusy(true);setRes(null);setTj(null);setTd(null);
     try{
-      const en=isPremium?nr:3;
-      const body={abstract:abs,keywords:kw,introduction_conclusion:ic,methods:mt,results_summary:rs,references:REFERENCES_FEATURE_ENABLED?refs:'',article_type:at,discipline:disc,indexing_required:isPremium?idx:[],oa_preference:isPremium?oa:'Any',apc_free_only:isPremium?apcF:false,max_apc:isPremium&&maxA?parseFloat(maxA):null,min_impact_factor:isPremium&&minI?parseFloat(minI):null,target_impact:isPremium&&ti?ti:null,num_results:en,language_preference:'auto'};
+      const en=hasCredits?nr:3;
+      const body={abstract:abs,keywords:kw,introduction_conclusion:ic,methods:mt,results_summary:rs,references:REFERENCES_FEATURE_ENABLED?refs:'',article_type:at,discipline:disc,indexing_required:hasCredits?idx:[],oa_preference:hasCredits?oa:'Any',apc_free_only:hasCredits?apcF:false,max_apc:hasCredits&&maxA?parseFloat(maxA):null,min_impact_factor:hasCredits&&minI?parseFloat(minI):null,target_impact:hasCredits&&ti?ti:null,num_results:en,language_preference:'auto'};
       const r=await fetch(API+'/recommend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
       if(!r.ok){const d=await r.json().catch(()=>({detail:r.statusText}));throw new Error(d.detail||'Failed');}
       const data=await r.json();setRes(data);
-      if(!user)incFreeSearches();else try{fbDb.collection('users').doc(user.uid).update({searches:firebase.firestore.FieldValue.increment(1)});}catch(x){}
+      // Bookkeeping after successful search
+      if(!user){incFreeSearches();}
+      else{
+        try{
+          const updates={total_searches:firebase.firestore.FieldValue.increment(1)};
+          if(hasCredits){updates.credits=firebase.firestore.FieldValue.increment(-1);}
+          await fbDb.collection('users').doc(user.uid).update(updates);
+          refreshUserDoc();
+        }catch(x){console.error('Search bookkeeping:',x);}
+      }
       setTimeout(()=>rRef.current?.scrollIntoView({behavior:'smooth'}),100);
     }catch(x){setErr(x.message);}finally{setBusy(false);}
   }
   async function doTailor(rec){
-    if(!isPremium){needPrem('Tailor Your Manuscript');return;}
+    if(!hasCredits){needCredits('Manuscript Tailoring');return;}
     setTj(rec);setTd(null);setTl(true);
     try{const body={abstract:abs,keywords:kw,introduction_conclusion:ic,methods:mt,results_summary:rs,article_type:at,journal_id:rec.journal_id,journal_name:rec.journal_name};const r=await fetch(API+'/tailor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok){const d=await r.json().catch(()=>({detail:'Failed'}));throw new Error(d.detail);}setTd(await r.json());}catch(x){setTd({error:x.message});}finally{setTl(false);}
   }
   async function doReport(){
-    if(!isPremium){needPrem('Download Report');return;}
+    if(!hasCredits){needCredits('Download Report');return;}
     if(!res)return;try{const r=await fetch(API+'/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({results:res,abstract:abs,constraints:{article_type:at,discipline:disc}})});if(!r.ok)throw new Error('Failed');const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='journal_recommendations.docx';a.click();URL.revokeObjectURL(u);}catch(x){alert(x.message);}
   }
   const fc=(f)=>{const v=(f||'').toLowerCase();if(v.includes('high')||v.includes('excellent'))return'bg-emerald-100 text-emerald-800';if(v.includes('medium')||v.includes('good'))return'bg-amber-100 text-amber-800';return'bg-red-100 text-red-800';};
   return(<div className="bg-gray-50 min-h-screen py-12"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div className="mb-8 fade-in"><h1 className="text-4xl font-bold text-[#1E3A8A] mb-2">Find Your Perfect Journal</h1><p className="text-xl text-gray-600">{user?`Welcome, ${user.email?.split('@')[0]}!`:'First search is free — no signup needed'}</p>{!user&&<div className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-[#14B8A6]/10 rounded-lg text-sm text-[#0F9B8E] font-medium"><span className="w-4 h-4"><I.Sparkles/></span>{getFreeSearches()>=1?'Sign up to continue searching':'1 free search — try it now!'}</div>}</div>
+    <div className="mb-8 fade-in"><h1 className="text-4xl font-bold text-[#1E3A8A] mb-2">Find Your Perfect Journal</h1><p className="text-xl text-gray-600">{user?`Welcome, ${user.email?.split('@')[0]}!`:'First search is free — no signup needed'}</p>
+      {!user&&<div className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-[#14B8A6]/10 rounded-lg text-sm text-[#0F9B8E] font-medium"><span className="w-4 h-4"><I.Sparkles/></span>{getFreeSearches()>=1?'Sign up to continue searching':'1 free search — try it now!'}</div>}
+      {user&&hasCredits&&<div className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-[#14B8A6]/10 rounded-lg text-sm text-[#0F9B8E] font-medium"><span className="w-4 h-4"><I.Coin/></span>{credits} credit{credits===1?'':'s'} — premium features active</div>}
+      {user&&!hasCredits&&<div className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg text-sm text-gray-700"><span className="w-4 h-4"><I.Coin/></span>0 credits — searches limited to 3 results, no filters or tailoring. <Link to="/pricing" className="ml-1 text-[#14B8A6] font-semibold hover:underline">Get credits →</Link></div>}
+    </div>
     <div className="grid lg:grid-cols-3 gap-8"><div className="lg:col-span-2">
       <form onSubmit={doSearch} className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 fade-in"><h2 className="text-2xl font-bold text-[#1E3A8A] mb-6">New Search</h2><div className="space-y-6">
         <div><label className="block text-sm font-semibold text-gray-700 mb-2">Abstract *</label><textarea value={abs} onChange={e=>setAbs(e.target.value)} placeholder="Paste your research abstract here..." className="w-full h-48 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent resize-none"/><p className="text-sm text-gray-500 mt-1">Min 50 chars ({abs.length})</p></div>
-        {REFERENCES_FEATURE_ENABLED&&<div><div className="flex items-center gap-2 mb-2"><label className="block text-sm font-semibold text-gray-700">References</label><span className="px-2 py-0.5 bg-[#14B8A6]/10 text-[#14B8A6] text-xs font-bold rounded">Highly recommended</span></div><p className="text-xs text-gray-600 mb-2">Paste your full reference list — any common style (APA, Vancouver, AMA, Nature). Journals you already cite are statistically the strongest fit signal we have, and editors look favourably on submissions that cite their own journal. <span className="text-[#14B8A6] font-medium">Citing a journal 5+ times almost always pushes it into the top 3.</span></p><textarea value={refs} onChange={e=>setRefs(e.target.value)} placeholder={"1. Smith J, Jones R. Polyphenol profiling in grape varieties. J Agric Food Chem. 2023;71(12):4500-4510.\n2. Tanaka K. Flavonoid biosynthesis. Plant Cell. 2021;33(2):166-180.\n..."} className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent resize-none font-mono text-xs"/></div>}
+        {REFERENCES_FEATURE_ENABLED&&<div><div className="flex items-center gap-2 mb-2"><label className="block text-sm font-semibold text-gray-700">References</label><span className="px-2 py-0.5 bg-[#14B8A6]/10 text-[#14B8A6] text-xs font-bold rounded">Highly recommended</span></div><p className="text-xs text-gray-600 mb-2">Paste your full reference list — any common style.</p><textarea value={refs} onChange={e=>setRefs(e.target.value)} placeholder={"1. Smith J, Jones R. ..."} className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent resize-none font-mono text-xs"/></div>}
         <div><label className="block text-sm font-semibold text-gray-700 mb-2">Keywords</label><input type="text" value={kw} onChange={e=>setKw(e.target.value)} placeholder="e.g., machine learning, neural networks" className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent"/></div>
         <button type="button" onClick={()=>setSm(!sm)} className="text-sm text-[#14B8A6] font-semibold hover:underline">{sm?'▾ Hide':'▸ Show'} extra sections (optional)</button>
         {sm&&<div className="space-y-4 pl-4 border-l-2 border-[#14B8A6]/20"><div><label className="block text-sm font-medium text-gray-700 mb-1">Introduction / Conclusion</label><textarea value={ic} onChange={e=>setIc(e.target.value)} placeholder="Paste intro/conclusion..." className="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none"/></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Methods</label><textarea value={mt} onChange={e=>setMt(e.target.value)} placeholder="Paste methods..." className="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none"/></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Results</label><textarea value={rs} onChange={e=>setRs(e.target.value)} placeholder="Key results..." className="w-full h-24 px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none"/></div></div>}
         <div className="grid md:grid-cols-2 gap-4"><div><label className="block text-sm font-medium text-gray-700 mb-1">Article Type</label><select value={at} onChange={e=>setAt(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{AT.map(t=><option key={t}>{t}</option>)}</select></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Discipline</label><select value={disc} onChange={e=>setDisc(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">{DS.map(d=><option key={d}>{d}</option>)}</select></div></div>
-        <div className="border-t pt-6"><button type="button" onClick={()=>{if(!isPremium){needPrem('Advanced Filters');return;}setSf(!sf);}} className="flex items-center gap-2 mb-4"><span className="w-5 h-5 text-gray-400"><I.Filter/></span><h3 className="font-semibold text-gray-700">Advanced Filters</h3>{!isPremium&&<span className="px-2 py-0.5 bg-[#14B8A6]/10 text-[#14B8A6] text-xs font-bold rounded flex items-center gap-1"><span className="w-3 h-3"><I.Lock/></span>Premium</span>}{isPremium&&<span className="w-4 h-4 text-gray-400"><I.ChevronDown/></span>}</button>
-        {sf&&isPremium&&<div className="grid md:grid-cols-2 gap-4 fade-in">
+        <div className="border-t pt-6"><button type="button" onClick={()=>{if(!hasCredits){needCredits('Advanced Filters');return;}setSf(!sf);}} className="flex items-center gap-2 mb-4"><span className="w-5 h-5 text-gray-400"><I.Filter/></span><h3 className="font-semibold text-gray-700">Advanced Filters</h3>{!hasCredits&&<span className="px-2 py-0.5 bg-[#14B8A6]/10 text-[#14B8A6] text-xs font-bold rounded flex items-center gap-1"><span className="w-3 h-3"><I.Lock/></span>Needs credit</span>}{hasCredits&&<span className="w-4 h-4 text-gray-400"><I.ChevronDown/></span>}</button>
+        {sf&&hasCredits&&<div className="grid md:grid-cols-2 gap-4 fade-in">
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Open Access</label><select value={oa} onChange={e=>setOa(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option>Any</option><option>Open Access Only</option><option>Hybrid</option></select></div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Impact Target</label><select value={ti} onChange={e=>setTi(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"><option value="">Any</option><option>Q1 (High)</option><option>Q1-Q2</option><option>Q2-Q3</option><option>Q3-Q4</option></select></div>
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Max APC (USD)</label><input type="number" value={maxA} onChange={e=>setMaxA(e.target.value)} placeholder="No limit" className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"/></div>
@@ -209,35 +328,35 @@ function DashboardPage(){
           <div><label className="block text-sm font-medium text-gray-700 mb-1">Indexing</label><div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">{IX.map(x=><button key={x} type="button" onClick={()=>setIdx(p=>p.includes(x)?p.filter(i=>i!==x):[...p,x])} className={`px-2 py-0.5 text-xs rounded-full border ${idx.includes(x)?'bg-[#14B8A6] text-white border-[#14B8A6]':'border-gray-300 text-gray-600 hover:border-[#14B8A6]'}`}>{x}</button>)}</div></div>
         </div>}</div>
         {err&&<div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{err}</div>}
-        <button type="submit" disabled={busy} className="w-full py-4 bg-[#14B8A6] text-white font-semibold rounded-lg hover:bg-[#0F9B8E] flex items-center justify-center gap-2 disabled:opacity-60">{busy?<><span className="w-5 h-5"><I.Loader/></span>Analyzing...</>:<><span className="w-5 h-5"><I.Search/></span>Find Matching Journals</>}</button>
+        <button type="submit" disabled={busy} className="w-full py-4 bg-[#14B8A6] text-white font-semibold rounded-lg hover:bg-[#0F9B8E] flex items-center justify-center gap-2 disabled:opacity-60">{busy?<><span className="w-5 h-5"><I.Loader/></span>Analyzing...</>:<><span className="w-5 h-5"><I.Search/></span>Find Matching Journals{user&&hasCredits&&<span className="text-xs opacity-90">(uses 1 credit)</span>}</>}</button>
       </div></form>
       {/* RESULTS */}
       <div ref={rRef}>{res&&<div className="mt-8 space-y-6 fade-in">
-        <div className="flex items-center justify-between"><h2 className="text-2xl font-bold text-[#1E3A8A]">Results</h2><button onClick={doReport} className="px-4 py-2 bg-[#1E3A8A] text-white text-sm font-medium rounded-lg flex items-center gap-2">{!isPremium&&<span className="w-3 h-3"><I.Lock/></span>}<span className="w-4 h-4"><I.Download/></span>Report</button></div>
+        <div className="flex items-center justify-between"><h2 className="text-2xl font-bold text-[#1E3A8A]">Results</h2><button onClick={doReport} className="px-4 py-2 bg-[#1E3A8A] text-white text-sm font-medium rounded-lg flex items-center gap-2">{!hasCredits&&<span className="w-3 h-3"><I.Lock/></span>}<span className="w-4 h-4"><I.Download/></span>Report</button></div>
         {res.constraints_relaxed&&<div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">Constraints relaxed — showing best overall matches.</div>}
-        {res.rerank_mode==='heuristic_fallback'&&<div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3"><span className="text-xl flex-shrink-0">⚠️</span><div className="text-sm text-amber-800"><strong>AI ranking temporarily unavailable.</strong> Showing simplified results — journal recommendations are still relevant, but explanations and reasoning are limited. This is usually a transient issue with the AI provider; please try again in a minute for full results.</div></div>}
+        {res.rerank_mode==='heuristic_fallback'&&<div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3"><span className="text-xl flex-shrink-0">⚠️</span><div className="text-sm text-amber-800"><strong>AI ranking temporarily unavailable.</strong> Showing simplified results — journal recommendations are still relevant, but explanations and reasoning are limited. Try again in a minute for full results.</div></div>}
         {res.rerank_mode==='llm_fallback_model'&&<div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3"><span className="text-xl flex-shrink-0">ℹ️</span><div className="text-sm text-blue-800">Recommendations were generated with our backup AI model — quality remains high; reasoning may be slightly less detailed than usual.</div></div>}
         <p className="text-sm text-gray-600">{res.analysis_summary}</p>
-        {REFERENCES_FEATURE_ENABLED&&res.references_parsed>0&&<div className="p-3 bg-[#14B8A6]/5 border border-[#14B8A6]/30 rounded-lg flex items-start gap-3"><span className="text-xl flex-shrink-0">📚</span><p className="text-sm text-gray-700">Matched <strong>{res.references_matched}</strong> of <strong>{res.references_parsed}</strong> references to journals in our database ({res.unique_journals_cited} unique). Citation count was used as a ranking signal for those journals.</p></div>}
-        {!isPremium&&res.recommendations?.length>0&&<div className="p-4 bg-[#14B8A6]/5 border border-[#14B8A6]/20 rounded-lg flex items-center justify-between"><p className="text-sm text-gray-700"><strong>Free tier:</strong> 3 results. Upgrade for up to 10 + filters + tailoring.</p><button onClick={()=>needPrem('More results')} className="px-4 py-2 bg-[#14B8A6] text-white text-sm rounded-lg hover:bg-[#0F9B8E] whitespace-nowrap">Upgrade</button></div>}
+        {REFERENCES_FEATURE_ENABLED&&res.references_parsed>0&&<div className="p-3 bg-[#14B8A6]/5 border border-[#14B8A6]/30 rounded-lg flex items-start gap-3"><span className="text-xl flex-shrink-0">📚</span><p className="text-sm text-gray-700">Matched <strong>{res.references_matched}</strong> of <strong>{res.references_parsed}</strong> references to journals in our database ({res.unique_journals_cited} unique).</p></div>}
+        {!hasCredits&&res.recommendations?.length>0&&<div className="p-4 bg-[#14B8A6]/5 border border-[#14B8A6]/20 rounded-lg flex items-center justify-between"><p className="text-sm text-gray-700"><strong>Free tier:</strong> 3 results. Get credits for up to 10 + filters + tailoring.</p><button onClick={()=>needCredits('More results')} className="px-4 py-2 bg-[#14B8A6] text-white text-sm rounded-lg hover:bg-[#0F9B8E] whitespace-nowrap">Get credits</button></div>}
         {res.recommendations?.length===0&&<div className="p-8 bg-white rounded-xl border text-center text-gray-500">No matches found. Try broadening filters or adding more detail.</div>}
         {res.recommendations?.map((r,i)=><div key={i} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-          <div className="flex items-start justify-between mb-3"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-[#1E3A8A] rounded-lg flex items-center justify-center text-white font-bold">{r.rank}</div><div><h3 className="text-lg font-bold text-[#1E3A8A]">{r.journal_name}</h3><p className="text-sm text-gray-500">{r.publisher}</p></div></div><div className="flex items-center gap-2 flex-wrap justify-end">{REFERENCES_FEATURE_ENABLED&&r.cited_count>0&&<span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[#14B8A6]/15 text-[#0F9B8E] border border-[#14B8A6]/30 whitespace-nowrap" title="You cited this journal in your references — strong topical and editor-fit signal">📚 Cited {r.cited_count}×</span>}<span className={`px-3 py-1 rounded-full text-xs font-semibold ${fc(r.fit)}`}>{r.fit}</span></div></div>
+          <div className="flex items-start justify-between mb-3"><div className="flex items-center gap-3"><div className="w-10 h-10 bg-[#1E3A8A] rounded-lg flex items-center justify-center text-white font-bold">{r.rank}</div><div><h3 className="text-lg font-bold text-[#1E3A8A]">{r.journal_name}</h3><p className="text-sm text-gray-500">{r.publisher}</p></div></div><div className="flex items-center gap-2 flex-wrap justify-end">{REFERENCES_FEATURE_ENABLED&&r.cited_count>0&&<span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-[#14B8A6]/15 text-[#0F9B8E] border border-[#14B8A6]/30 whitespace-nowrap">📚 Cited {r.cited_count}×</span>}<span className={`px-3 py-1 rounded-full text-xs font-semibold ${fc(r.fit)}`}>{r.fit}</span></div></div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-sm"><div><span className="text-gray-500">OA:</span> <span className="font-medium">{r.oa_model||'N/A'}</span></div><div><span className="text-gray-500">APC:</span> <span className="font-medium">{r.apc_estimate||'N/A'}</span></div><div><span className="text-gray-500">IF:</span> <span className="font-medium">{r.impact_factor||r.impact_proxy||'N/A'}</span></div><div><span className="text-gray-500">Review:</span> <span className="font-medium">{r.review_time||'N/A'}</span></div></div>
           {r.reasons?.length>0&&<div className="mb-3">{r.reasons.map((x,j)=><p key={j} className="text-sm text-gray-600 flex gap-2"><span className="text-[#14B8A6]">✓</span>{x}</p>)}</div>}
           {r.concern&&<p className="text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded mb-3">⚠️ {r.concern}</p>}
-          <div className="flex gap-2 mt-3"><button onClick={()=>doTailor(r)} className="px-4 py-2 bg-[#14B8A6] text-white text-sm rounded-lg hover:bg-[#0F9B8E] flex items-center gap-1">{!isPremium&&<span className="w-3 h-3"><I.Lock/></span>}<span className="w-4 h-4"><I.FileEdit/></span>Tailor</button>{r.homepage&&<a href={r.homepage} target="_blank" rel="noopener noreferrer" className="px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 flex items-center gap-1"><span className="w-4 h-4"><I.ExternalLink/></span>Homepage</a>}</div>
+          <div className="flex gap-2 mt-3"><button onClick={()=>doTailor(r)} className="px-4 py-2 bg-[#14B8A6] text-white text-sm rounded-lg hover:bg-[#0F9B8E] flex items-center gap-1">{!hasCredits&&<span className="w-3 h-3"><I.Lock/></span>}<span className="w-4 h-4"><I.FileEdit/></span>Tailor</button>{r.homepage&&<a href={r.homepage} target="_blank" rel="noopener noreferrer" className="px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 flex items-center gap-1"><span className="w-4 h-4"><I.ExternalLink/></span>Homepage</a>}</div>
         </div>)}
       </div>}</div>
     </div>
     {/* SIDEBAR */}
     <div className="space-y-6 fade-in">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6"><h3 className="font-bold text-[#1E3A8A] mb-4">Quick Tips</h3><ul className="space-y-3">{['Include main findings in abstract','Add 3-5 specific keywords','Use field-specific terminology','Add Methods & Results for precision'].map((t,i)=><li key={i} className="flex items-start gap-2"><span className="w-5 h-5 text-[#14B8A6] flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-sm text-gray-600">{t}</span></li>)}</ul></div>
-      {!isPremium&&<div className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-xl p-6 text-white"><span className="w-8 h-8 mb-3 block"><I.Crown/></span><h3 className="font-bold text-lg mb-2">Unlock Premium</h3><ul className="space-y-2 mb-4 text-sm">{['Up to 10 matches','Advanced filters','Tailor Manuscript','DOCX reports'].map((f,i)=><li key={i} className="flex items-center gap-2"><span className="w-4 h-4"><I.Check/></span>{f}</li>)}</ul><Link to="/pricing" className="block w-full py-2 bg-white text-[#1E3A8A] text-center font-semibold rounded-lg">View Plans</Link></div>}
-      {isPremium&&<div className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-xl p-6 text-white"><span className="w-8 h-8 mb-3 block"><I.Crown/></span><h3 className="font-bold text-lg mb-2">Premium Active</h3><p className="text-sm text-gray-100">All features unlocked.</p></div>}
+      {!hasCredits&&<div className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-xl p-6 text-white"><span className="w-8 h-8 mb-3 block"><I.Coin/></span><h3 className="font-bold text-lg mb-2">Get credits</h3><ul className="space-y-2 mb-4 text-sm">{['Up to 10 matches per search','Advanced filters','Manuscript tailoring','DOCX reports'].map((f,i)=><li key={i} className="flex items-center gap-2"><span className="w-4 h-4"><I.Check/></span>{f}</li>)}</ul><Link to="/pricing" className="block w-full py-2 bg-white text-[#1E3A8A] text-center font-semibold rounded-lg">View packs</Link></div>}
+      {hasCredits&&<div className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-xl p-6 text-white"><span className="w-8 h-8 mb-3 block"><I.Coin/></span><h3 className="font-bold text-lg mb-2">{credits} credit{credits===1?'':'s'} left</h3><p className="text-sm text-gray-100 mb-3">Each search uses 1 credit. All premium features unlocked.</p><Link to="/pricing" className="block w-full py-2 bg-white/20 text-white text-center text-sm font-semibold rounded-lg hover:bg-white/30">Top up</Link></div>}
     </div></div></div>
     {showAuth&&<AuthModal onClose={()=>setShowAuth(false)} initialMode="signup" message={authMsg}/>}
-    {showPrem&&<PremiumModal onClose={()=>setShowPrem(false)} feature={premFeat}/>}
+    {showCredits&&<CreditsModal onClose={()=>setShowCredits(false)} feature={creditFeat}/>}
     {tj&&<div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-12 pb-12 px-4 overflow-y-auto" onClick={()=>{setTj(null);setTd(null);}}><div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-8 relative" onClick={e=>e.stopPropagation()}>
       <button onClick={()=>{setTj(null);setTd(null);}} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><span className="w-5 h-5 text-gray-400"><I.X/></span></button>
       <h2 className="text-2xl font-bold text-[#1E3A8A] mb-1">Tailor Your Manuscript</h2><p className="text-gray-500 mb-6">For: <strong>{tj.journal_name}</strong></p>
@@ -260,7 +379,7 @@ function DashboardPage(){
 /* FEATURES */
 function FeaturesPage(){return(<div className="bg-white">
 <section className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white py-20"><div className="max-w-4xl mx-auto px-4 text-center"><h1 className="text-5xl font-bold mb-6">Powerful Features for Smarter Publishing</h1><p className="text-xl text-gray-100">Everything you need to find the perfect journal</p></div></section>
-<section className="py-20"><div className="max-w-7xl mx-auto px-4"><div className="grid md:grid-cols-2 gap-12">{[{icon:<I.Target/>,t:'AI-Powered Matching',d:'Semantic analysis of your abstract across 9,300+ journals.',items:['Content understanding','Similarity scoring','Ranked results'],free:true},{icon:<I.Filter/>,t:'Advanced Filters',d:'Narrow down by APC, IF, indexing, OA.',items:['APC range','IF quartile','Indexing (Scopus, WoS, PubMed)','OA vs subscription'],free:false},{icon:<I.FileEdit/>,t:'Tailor Your Manuscript',d:'Journal-specific preparation guidance.',items:['Title suggestions','Cover letter tips','Reviewer concern anticipation','Keyword optimization'],free:false},{icon:<I.Download/>,t:'Export Reports',d:'Share detailed DOCX reports with co-authors.',items:['Full recommendations','Tailoring guidance','Professional formatting'],free:false}].map((f,i)=><div key={i} className="flex gap-6"><div className="flex-shrink-0"><div className="w-16 h-16 bg-[#14B8A6] rounded-xl flex items-center justify-center text-white"><span className="w-8 h-8">{f.icon}</span></div></div><div><div className="flex items-center gap-2 mb-3"><h3 className="text-2xl font-bold text-[#1E3A8A]">{f.t}</h3>{!f.free&&<span className="px-2 py-0.5 bg-[#14B8A6]/10 text-[#14B8A6] text-xs font-bold rounded">Premium</span>}</div><p className="text-gray-600 mb-4">{f.d}</p><ul className="space-y-2">{f.items.map((x,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 text-[#14B8A6] flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-gray-600">{x}</span></li>)}</ul></div></div>)}</div></div></section>
+<section className="py-20"><div className="max-w-7xl mx-auto px-4"><div className="grid md:grid-cols-2 gap-12">{[{icon:<I.Target/>,t:'AI-Powered Matching',d:'Semantic analysis of your abstract across 9,300+ journals.',items:['Content understanding','Similarity scoring','Ranked results'],free:true},{icon:<I.Filter/>,t:'Advanced Filters',d:'Narrow down by APC, IF, indexing, OA.',items:['APC range','IF quartile','Indexing (Scopus, WoS, PubMed)','OA vs subscription'],free:false},{icon:<I.FileEdit/>,t:'Tailor Your Manuscript',d:'Journal-specific preparation guidance.',items:['Title suggestions','Cover letter tips','Reviewer concern anticipation','Keyword optimization'],free:false},{icon:<I.Download/>,t:'Export Reports',d:'Share detailed DOCX reports with co-authors.',items:['Full recommendations','Tailoring guidance','Professional formatting'],free:false}].map((f,i)=><div key={i} className="flex gap-6"><div className="flex-shrink-0"><div className="w-16 h-16 bg-[#14B8A6] rounded-xl flex items-center justify-center text-white"><span className="w-8 h-8">{f.icon}</span></div></div><div><div className="flex items-center gap-2 mb-3"><h3 className="text-2xl font-bold text-[#1E3A8A]">{f.t}</h3>{!f.free&&<span className="px-2 py-0.5 bg-[#14B8A6]/10 text-[#14B8A6] text-xs font-bold rounded">Needs credit</span>}</div><p className="text-gray-600 mb-4">{f.d}</p><ul className="space-y-2">{f.items.map((x,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 text-[#14B8A6] flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-gray-600">{x}</span></li>)}</ul></div></div>)}</div></div></section>
 <section className="py-20"><div className="max-w-4xl mx-auto px-4 text-center"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-6">Ready?</h2><div className="flex gap-4 justify-center"><Link to="/dashboard" className="px-8 py-3 bg-[#14B8A6] text-white font-semibold rounded-lg hover:bg-[#0F9B8E]">Try Free</Link><Link to="/pricing" className="px-8 py-3 bg-gray-100 text-[#1E3A8A] font-semibold rounded-lg hover:bg-gray-200">Pricing</Link></div></div></section>
 </div>);}
 
@@ -273,27 +392,79 @@ function AboutPage(){return(<div className="bg-white">
 <section className="py-20 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white"><div className="max-w-4xl mx-auto px-4 text-center"><h2 className="text-4xl font-bold mb-6">Join Researchers Worldwide</h2><Link to="/dashboard" className="inline-block px-8 py-4 bg-white text-[#1E3A8A] text-lg font-semibold rounded-lg hover:bg-gray-100">Get Started Free</Link></div></section>
 </div>);}
 
-/* PRICING */
+/* PRICING — credit packs + institutional */
 function PricingPage(){
-  const ps=[{name:'Free',price:'€0',per:'/mo',items:['1 free search (no signup)','Unlimited after signup','3 matches per search','Basic filters'],cta:'Get Started',cs:'bg-gray-100 text-[#1E3A8A] hover:bg-gray-200'},{name:'Premium Lite',price:'€12',per:'/mo',cr:'5 credits/mo',items:['Up to 10 matches','All advanced filters','Tailor Manuscript','DOCX reports'],cta:'Start Trial',cs:'bg-[#14B8A6] text-white hover:bg-[#0F9B8E]'},{name:'Premium Pro',price:'€25',per:'/mo',cr:'15 credits/mo',items:['Up to 10 matches','All advanced filters','Tailor Manuscript','DOCX reports','Priority support'],cta:'Start Trial',best:true},{name:'Unlimited',price:'€60',per:'/mo',items:['Unlimited searches','All Premium features','Search history','Team sharing'],cta:'Start Trial',cs:'bg-[#14B8A6] text-white hover:bg-[#0F9B8E]'}];
+  const ps=[
+    {name:'Free',price:'€0',badge:'No card needed',items:['1 free search (no signup)','Unlimited 3-result searches after signup','Basic filters'],cta:'Get started',ctaTo:'/dashboard',cs:'bg-gray-100 text-[#1E3A8A] hover:bg-gray-200'},
+    {name:'Starter pack',price:'€15',badge:'5 credits',perCredit:'€3.00 / credit',items:['5 full premium searches','All advanced filters','Manuscript tailoring','DOCX reports','Valid 1 year'],cta:'Buy pack',ctaTo:'/dashboard',cs:'bg-[#14B8A6] text-white hover:bg-[#0F9B8E]'},
+    {name:'Standard pack',price:'€40',badge:'20 credits',perCredit:'€2.00 / credit',items:['20 full premium searches','All advanced filters','Manuscript tailoring','DOCX reports','Valid 1 year'],cta:'Buy pack',ctaTo:'/dashboard',best:true},
+    {name:'Power pack',price:'€90',badge:'60 credits',perCredit:'€1.50 / credit',items:['60 full premium searches','All advanced filters','Manuscript tailoring','DOCX reports','Valid 1 year'],cta:'Buy pack',ctaTo:'/dashboard',cs:'bg-[#14B8A6] text-white hover:bg-[#0F9B8E]'},
+  ];
+  // Anchor jump for /pricing#institutional
+  useEffect(()=>{if(window.location.hash.includes('#institutional')){const el=document.getElementById('institutional');if(el)setTimeout(()=>el.scrollIntoView({behavior:'smooth'}),100);}},[]);
+useEffect(()=>{
+  // Tally's embed script only scans once on initial load; in a React SPA the
+  // iframe doesn't exist yet at that point. Re-trigger the scan after mount.
+  const tryLoad=()=>{
+    if(window.Tally&&typeof window.Tally.loadEmbeds==='function'){
+      window.Tally.loadEmbeds();
+    }else{
+      // Script not ready yet — fall back to setting src directly
+      document.querySelectorAll('iframe[data-tally-src]').forEach(f=>{
+        if(!f.src)f.src=f.dataset.tallySrc;
+      });
+    }
+  };
+  // First attempt now, second after a beat in case the script is still loading
+  tryLoad();
+  const t=setTimeout(tryLoad,500);
+  return()=>clearTimeout(t);
+},[]);
   return(<div className="bg-white">
-  <section className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white py-20"><div className="max-w-4xl mx-auto px-4 text-center"><h1 className="text-5xl font-bold mb-6">Simple, Transparent Pricing</h1><p className="text-xl text-gray-100">Start free, upgrade anytime.</p></div></section>
+  <section className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white py-20"><div className="max-w-4xl mx-auto px-4 text-center"><h1 className="text-5xl font-bold mb-6">Pay only for what you use</h1><p className="text-xl text-gray-100">Buy credits — no subscriptions, valid for 1 year.</p></div></section>
   <section className="py-20"><div className="max-w-7xl mx-auto px-4"><div className="grid md:grid-cols-4 gap-6">{ps.map((p,i)=>p.best?
-    <div key={i} className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white border-2 border-[#14B8A6] rounded-xl p-6 relative transform md:scale-105 shadow-xl"><div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#14B8A6] rounded-full text-sm font-semibold">Best Value</div><h3 className="text-xl font-bold mb-2">{p.name}</h3><div className="mb-4"><span className="text-4xl font-bold">{p.price}</span><span className="text-gray-100">{p.per}</span></div>{p.cr&&<div className="mb-4 text-sm"><strong>{p.cr}</strong></div>}<ul className="space-y-3 mb-8">{p.items.map((x,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-sm">{x}</span></li>)}</ul><Link to="/dashboard" className="block w-full py-3 bg-white text-[#1E3A8A] text-center font-semibold rounded-lg hover:bg-gray-100">{p.cta}</Link></div>
-    :<div key={i} className="bg-white border-2 border-gray-200 rounded-xl p-6"><h3 className="text-xl font-bold text-[#1E3A8A] mb-2">{p.name}</h3><div className="mb-4"><span className="text-4xl font-bold text-[#1E3A8A]">{p.price}</span><span className="text-gray-600">{p.per}</span></div>{p.cr&&<div className="mb-4 text-sm text-gray-600"><strong className="text-[#14B8A6]">{p.cr}</strong></div>}<ul className="space-y-3 mb-8">{p.items.map((x,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 text-[#14B8A6] flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-sm text-gray-600">{x}</span></li>)}</ul><Link to="/dashboard" className={`block w-full py-3 text-center font-semibold rounded-lg ${p.cs}`}>{p.cta}</Link></div>
-  )}</div></div></section>
-  <section className="py-20 bg-gray-50"><div className="max-w-4xl mx-auto px-4"><h2 className="text-3xl font-bold text-[#1E3A8A] mb-12 text-center">FAQ</h2><div className="space-y-6">{[{q:'Can I try without signing up?',a:'Yes! First search is completely free, no account needed.'},{q:'What is a credit?',a:'1 credit = 1 full search with all filters, up to 10 recommendations, and Tailor access.'},{q:'Student discount?',a:'30% off with a valid .edu email.'}].map((f,i)=><div key={i} className="bg-white p-6 rounded-xl shadow-sm"><h3 className="font-bold text-[#1E3A8A] mb-2">{f.q}</h3><p className="text-gray-600">{f.a}</p></div>)}</div></div></section>
+    <div key={i} className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white border-2 border-[#14B8A6] rounded-xl p-6 relative transform md:scale-105 shadow-xl"><div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#14B8A6] rounded-full text-sm font-semibold">Best Value</div><h3 className="text-xl font-bold mb-2">{p.name}</h3><div className="mb-2"><span className="text-4xl font-bold">{p.price}</span></div>{p.badge&&<div className="mb-2 text-sm font-bold">{p.badge}</div>}{p.perCredit&&<div className="mb-4 text-xs text-gray-100">{p.perCredit}</div>}<ul className="space-y-3 mb-8">{p.items.map((x,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-sm">{x}</span></li>)}</ul><Link to={p.ctaTo} className="block w-full py-3 bg-white text-[#1E3A8A] text-center font-semibold rounded-lg hover:bg-gray-100">{p.cta}</Link></div>
+    :<div key={i} className="bg-white border-2 border-gray-200 rounded-xl p-6"><h3 className="text-xl font-bold text-[#1E3A8A] mb-2">{p.name}</h3><div className="mb-2"><span className="text-4xl font-bold text-[#1E3A8A]">{p.price}</span></div>{p.badge&&<div className="mb-2 text-sm font-bold text-[#14B8A6]">{p.badge}</div>}{p.perCredit&&<div className="mb-4 text-xs text-gray-500">{p.perCredit}</div>}<ul className="space-y-3 mb-8">{p.items.map((x,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 text-[#14B8A6] flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-sm text-gray-600">{x}</span></li>)}</ul><Link to={p.ctaTo} className={`block w-full py-3 text-center font-semibold rounded-lg ${p.cs}`}>{p.cta}</Link></div>
+  )}</div><p className="text-center text-sm text-gray-500 mt-8">Payment processing coming soon — contact us at <a href={`mailto:${CONTACT_EMAIL}`} className="text-[#14B8A6] hover:underline">{CONTACT_EMAIL}</a> for early access.</p></div></section>
+  {/* INSTITUTIONAL */}
+  <section id="institutional" className="py-20 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white"><div className="max-w-5xl mx-auto px-4">
+    <div className="text-center mb-10"><span className="inline-block w-16 h-16 bg-white/20 rounded-xl items-center justify-center p-4 mb-4"><I.Building/></span><h2 className="text-4xl font-bold mb-4">For institutions and departments</h2><p className="text-xl text-gray-100 max-w-2xl mx-auto">Annual contracts, custom seat counts, and invoicing. Available to universities, research institutes, and corporate R&amp;D teams.</p></div>
+    <div className="grid md:grid-cols-3 gap-6 mb-10">{[{t:'Per-seat or pooled credits',d:'Choose what fits your team — individual researcher accounts or shared credit pool.'},{t:'Invoicing & purchase orders',d:'No credit card required. We accept POs and standard procurement.'},{t:'Volume pricing',d:'Discounts scale with seat count. Most departments save 30–50% vs individual packs.'}].map((f,i)=><div key={i} className="bg-white/10 rounded-xl p-6 border border-white/20"><h3 className="font-bold mb-2">{f.t}</h3><p className="text-sm text-gray-100">{f.d}</p></div>)}</div>
+    <div className="bg-white rounded-xl p-8 text-gray-700"><h3 className="text-2xl font-bold text-[#1E3A8A] mb-4 text-center">Get in touch</h3><p className="text-center text-gray-600 mb-6">Tell us about your team — we'll send a quote within 2 business days, or you can book a 30-minute intro call.</p>
+      <div className="grid md:grid-cols-2 gap-4 mb-6">
+        {/* Tally embed — replace TALLY_FORM_ID at the top of this file once your form is live */}
+        <iframe data-tally-src={`https://tally.so/embed/${TALLY_FORM_ID}?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1`} loading="lazy" width="100%" height="320" frameBorder="0" title="Institutional inquiry form" className="rounded-lg border border-gray-200"></iframe>
+        <div className="flex flex-col justify-center gap-4">
+          <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="block w-full py-4 bg-[#14B8A6] text-white text-center font-semibold rounded-lg hover:bg-[#0F9B8E] flex items-center justify-center gap-2"><span className="w-5 h-5"><I.Clock/></span>Book a 30-min call</a>
+          <a href={`mailto:${CONTACT_EMAIL}?subject=Institutional inquiry`} className="block w-full py-4 border-2 border-[#1E3A8A] text-[#1E3A8A] text-center font-semibold rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2"><span className="w-5 h-5"><I.Mail/></span>Email us directly</a>
+          <p className="text-xs text-gray-500 text-center">Or write to <a href={`mailto:${CONTACT_EMAIL}`} className="text-[#14B8A6] hover:underline">{CONTACT_EMAIL}</a></p>
+        </div>
+      </div>
+    </div>
+  </div></section>
+  <section className="py-20"><div className="max-w-4xl mx-auto px-4"><h2 className="text-3xl font-bold text-[#1E3A8A] mb-12 text-center">FAQ</h2><div className="space-y-6">{[
+    {q:'Can I try without signing up?',a:'Yes — your first search is completely free with no account needed. After that, sign up for a free account to keep searching with 3 results per search.'},
+    {q:'What is a credit?',a:'1 credit = 1 full premium search with all advanced filters, up to 10 ranked recommendations, manuscript tailoring guidance, and DOCX report download.'},
+    {q:'Do credits expire?',a:'Credits are valid for 1 year from purchase. Unused credits expire after 12 months.'},
+    {q:'What happens to my account when credits run out?',a:'Your account stays active forever. With 0 credits, you still get unlimited basic searches with 3 results per search — just no advanced filters or tailoring until you top up.'},
+    {q:'Do you offer student discounts?',a:'30% off all credit packs with a valid .edu email — contact us at hello@pubfit.ai to request the discount code.'},
+    {q:'How does institutional pricing work?',a:'Annual contracts with a custom seat count, invoiced through your institution. Volume discounts apply. Use the form above or email us.'}
+  ].map((f,i)=><div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200"><h3 className="font-bold text-[#1E3A8A] mb-2">{f.q}</h3><p className="text-gray-600">{f.a}</p></div>)}</div></div></section>
   </div>);
 }
 
 /* ACCOUNT */
 function AccountPage(){
-  const {user,plan,loading}=useAuth();const isPro=plan==='premium';
-  const [stats,setStats]=useState({searches:0,created:''});const [busy,setBusy]=useState(false);const [msg,setMsg]=useState('');
-  useEffect(()=>{if(!user)return;fbDb.collection('users').doc(user.uid).get().then(d=>{if(d.exists){const x=d.data();setStats({searches:x.searches||0,created:x.created||''});}}).catch(()=>{});},[user]);
+  const {user,credits,creditsExpireAt,totalSearches,hasCredits,loading}=useAuth();
+  const [busy,setBusy]=useState(false);const [msg,setMsg]=useState('');
+  const [purchases,setPurchases]=useState([]);
+  const [created,setCreated]=useState('');
+  useEffect(()=>{if(!user)return;fbDb.collection('users').doc(user.uid).get().then(d=>{if(d.exists){const x=d.data();setPurchases(x.purchases||[]);setCreated(x.created||'');}}).catch(()=>{});},[user]);
   if(loading)return <div className="min-h-[60vh] flex items-center justify-center"><div className="w-10 h-10 text-[#14B8A6]"><I.Loader/></div></div>;
   if(!user){window.location.hash='/';return null;}
   async function resetPw(){setBusy(true);setMsg('');try{await fbAuth.sendPasswordResetEmail(user.email);setMsg('Password reset email sent. Check your inbox.');}catch(e){setMsg('Error: '+e.message);}finally{setBusy(false);}}
+  const expiryStr=creditsExpireAt?new Date(creditsExpireAt).toLocaleDateString():null;
+  const daysLeft=creditsExpireAt?Math.ceil((new Date(creditsExpireAt).getTime()-Date.now())/(24*3600*1000)):null;
   return(<div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
     <h1 className="text-3xl font-bold text-[#1E3A8A] mb-2">Account settings</h1>
     <p className="text-gray-600 mb-8">Manage your PubFit account.</p>
@@ -301,17 +472,25 @@ function AccountPage(){
       <h2 className="text-lg font-bold text-[#1E3A8A] mb-4">Profile</h2>
       <div className="space-y-3">
         <div className="flex justify-between items-start py-2 border-b border-gray-100"><div><p className="text-xs text-gray-500">Email</p><p className="text-sm text-gray-900">{user.email}</p></div></div>
-        <div className="flex justify-between items-start py-2 border-b border-gray-100"><div><p className="text-xs text-gray-500">Account created</p><p className="text-sm text-gray-900">{stats.created?new Date(stats.created).toLocaleDateString():'—'}</p></div></div>
-        <div className="flex justify-between items-start py-2"><div><p className="text-xs text-gray-500">Searches</p><p className="text-sm text-gray-900">{stats.searches}</p></div></div>
+        <div className="flex justify-between items-start py-2 border-b border-gray-100"><div><p className="text-xs text-gray-500">Account created</p><p className="text-sm text-gray-900">{created?new Date(created).toLocaleDateString():'—'}</p></div></div>
+        <div className="flex justify-between items-start py-2"><div><p className="text-xs text-gray-500">Total searches</p><p className="text-sm text-gray-900">{totalSearches}</p></div></div>
       </div>
     </div>
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-      <h2 className="text-lg font-bold text-[#1E3A8A] mb-4">Plan</h2>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3"><span className={`px-3 py-1 text-sm font-bold rounded ${isPro?'bg-[#14B8A6]/10 text-[#14B8A6]':'bg-gray-100 text-gray-600'}`}>{isPro?'PRO':'FREE'}</span><p className="text-sm text-gray-600">{isPro?'All features unlocked':'Limited to 3 results, no filters or tailoring'}</p></div>
-        {!isPro&&<Link to="/pricing" className="px-4 py-2 bg-[#14B8A6] text-white text-sm font-medium rounded-lg hover:bg-[#0F9B8E]">Upgrade</Link>}
-      </div>
+      <h2 className="text-lg font-bold text-[#1E3A8A] mb-4">Credits</h2>
+      {hasCredits?<div>
+        <div className="flex items-baseline gap-2 mb-2"><span className="text-4xl font-bold text-[#14B8A6]">{credits}</span><span className="text-gray-600">credit{credits===1?'':'s'} remaining</span></div>
+        <p className="text-sm text-gray-600 mb-4">Expires <strong>{expiryStr}</strong> ({daysLeft} day{daysLeft===1?'':'s'} from today). All premium features active.</p>
+        <Link to="/pricing" className="inline-block px-4 py-2 bg-[#14B8A6] text-white text-sm font-medium rounded-lg hover:bg-[#0F9B8E]">Top up credits</Link>
+      </div>:<div>
+        <div className="flex items-center gap-3 mb-3"><span className="px-3 py-1 text-sm font-bold rounded bg-gray-100 text-gray-600">FREE</span><p className="text-sm text-gray-600">{credits>0&&isExpired(creditsExpireAt)?`Your ${credits} credit(s) expired ${expiryStr}.`:'No credits remaining.'} Searches limited to 3 results, no filters or tailoring.</p></div>
+        <Link to="/pricing" className="inline-block px-4 py-2 bg-[#14B8A6] text-white text-sm font-medium rounded-lg hover:bg-[#0F9B8E]">Get credits</Link>
+      </div>}
     </div>
+    {purchases.length>0&&<div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <h2 className="text-lg font-bold text-[#1E3A8A] mb-4">Purchase history</h2>
+      <div className="space-y-2">{purchases.slice().reverse().map((p,i)=><div key={i} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0"><div><p className="text-sm font-medium text-gray-900">{p.credits} credits — €{p.amount}</p><p className="text-xs text-gray-500">{p.purchased_at?new Date(p.purchased_at).toLocaleDateString():'—'}{p.expires_at?` · expires ${new Date(p.expires_at).toLocaleDateString()}`:''}</p></div></div>)}</div>
+    </div>}
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
       <h2 className="text-lg font-bold text-[#1E3A8A] mb-4">Security</h2>
       <button onClick={resetPw} disabled={busy} className="px-4 py-2 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50">{busy?'Sending...':'Send password reset email'}</button>
@@ -325,9 +504,242 @@ function AccountPage(){
   </div>);
 }
 
+/* MARKDOWN-LITE renderer for legal pages — handles #, ##, ###, **bold**, paragraphs, bullet lists, simple tables */
+function MdLite({src}){
+  const lines=src.split('\n');
+  const out=[];let i=0;let key=0;
+  const inline=(s)=>{const parts=[];let j=0;let k=0;const re=/\*\*([^*]+)\*\*/g;let m;while((m=re.exec(s))!==null){if(m.index>j)parts.push(s.slice(j,m.index));parts.push(<strong key={k++}>{m[1]}</strong>);j=m.index+m[0].length;}if(j<s.length)parts.push(s.slice(j));return parts;};
+  while(i<lines.length){
+    const ln=lines[i];
+    if(ln.startsWith('# ')){out.push(<h1 key={key++}>{inline(ln.slice(2))}</h1>);i++;}
+    else if(ln.startsWith('## ')){out.push(<h2 key={key++}>{inline(ln.slice(3))}</h2>);i++;}
+    else if(ln.startsWith('### ')){out.push(<h3 key={key++}>{inline(ln.slice(4))}</h3>);i++;}
+    else if(ln.startsWith('- ')){const items=[];while(i<lines.length&&lines[i].startsWith('- ')){items.push(lines[i].slice(2));i++;}out.push(<ul key={key++}>{items.map((t,n)=><li key={n}>{inline(t)}</li>)}</ul>);}
+    else if(ln.startsWith('|')){
+      // table: header | sep | rows
+      const tableLines=[];while(i<lines.length&&lines[i].startsWith('|')){tableLines.push(lines[i]);i++;}
+      if(tableLines.length>=2){
+        const header=tableLines[0].split('|').slice(1,-1).map(c=>c.trim());
+        const rows=tableLines.slice(2).map(r=>r.split('|').slice(1,-1).map(c=>c.trim()));
+        out.push(<table key={key++}><thead><tr>{header.map((h,n)=><th key={n}>{inline(h)}</th>)}</tr></thead><tbody>{rows.map((r,n)=><tr key={n}>{r.map((c,m)=><td key={m}>{inline(c)}</td>)}</tr>)}</tbody></table>);
+      }
+    }
+    else if(ln.trim()===''){i++;}
+    else{out.push(<p key={key++}>{inline(ln)}</p>);i++;}
+  }
+  return <div className="legal-content">{out}</div>;
+}
+
+/* PRIVACY POLICY */
+const PRIVACY_TEXT=`# Privacy Policy
+
+**Last updated: [DATE TO FILL IN BEFORE PUBLISHING]**
+
+This Privacy Policy explains how PubFit ("we", "us", "our") collects, uses, and protects your personal data when you use our website at pubfit.ai (the "Service"). We are committed to protecting your privacy and complying with the EU General Data Protection Regulation (GDPR) and applicable Spanish data protection law (LOPDGDD).
+
+## 1. Data Controller
+
+The data controller for personal data processed through the Service is:
+
+**[LEGAL ENTITY NAME — e.g., ReviewPRO.io S.L.]**, [REGISTERED ADDRESS], [CITY], Spain. CIF/NIF: [TAX ID]. Email: ${PRIVACY_EMAIL}.
+
+For any questions about this policy or to exercise your rights, contact us at the email above.
+
+## 2. What Data We Collect
+
+**Account data.** When you create an account, we collect your email address and an encrypted password (or, if you sign in with Google, your Google account email and basic profile information). This is stored by our authentication provider, Firebase Authentication.
+
+**Profile and credit data.** Your credit balance, expiry date, and purchase history are stored in our Firestore database. If you purchase credit packs, billing details (card information, billing address) are processed and stored by Stripe — we do not store payment card data on our servers.
+
+**Manuscript content you submit.** When you use the recommendation, tailoring, or report features, you submit text such as abstracts, keywords, references, and other manuscript sections. This content is processed in real time to generate recommendations. We may retain anonymized aggregated query data for service improvement.
+
+**Usage data.** We collect information about how you use the Service: search queries, results clicked, features used, and feedback you submit.
+
+**Technical data.** Server logs include your IP address, browser type, operating system, referrer URL, timestamps, and pages visited.
+
+**Cookies and local storage.** We use cookies and browser local storage to maintain your session, remember your preferences, and enforce free-tier limits before signup.
+
+## 3. Legal Basis for Processing
+
+Under GDPR Article 6, we process your personal data on the following legal bases:
+
+- **Contract performance** (Art. 6(1)(b)): processing necessary to provide the Service you requested.
+- **Legitimate interests** (Art. 6(1)(f)): operating, securing, and improving the Service.
+- **Consent** (Art. 6(1)(a)): for any optional features such as marketing communications.
+- **Legal obligation** (Art. 6(1)(c)): retention of billing records as required by Spanish tax law.
+
+## 4. How Your Data Is Used
+
+We use your personal data to provide journal recommendations, manuscript tailoring, and report generation; authenticate you and maintain your account; process payments and manage credits; communicate about your account; detect and prevent fraud and abuse; improve the Service through aggregated analytics; and comply with legal obligations.
+
+## 5. Use of Your Manuscript Content
+
+This section deserves your specific attention because it concerns the most sensitive data you submit.
+
+**Manuscript content you enter (abstracts, references, keywords, etc.) is transmitted to Google's Gemini API for AI processing.** This is necessary to generate the embeddings, recommendations, and tailoring advice that the Service produces. Per Google's policies for paid Gemini API usage, your prompts and responses are not used to train Google's models.
+
+**Important consideration for unpublished research.** Submitting unpublished manuscripts or confidential research to any cloud-based AI service involves disclosure to a third-party processor. If your manuscript contains genuinely sensitive intellectual property whose disclosure would harm you, consider submitting only the abstract and high-level metadata rather than full manuscript text.
+
+We do not sell or share your manuscript content with publishers, advertisers, or any third party other than the technical processors listed in Section 7.
+
+## 6. Data Retention
+
+- **Account data**: for as long as your account is active, plus 30 days after deletion.
+- **Manuscript content (search queries)**: up to 90 days in identifiable form.
+- **Billing records**: 6 years, as required by Spanish tax law.
+- **Server logs**: 30 days.
+- **Aggregated and anonymized analytics**: indefinitely.
+
+You can request deletion of your account at any time by emailing ${PRIVACY_EMAIL} or via the account settings page.
+
+## 7. Service Providers (Sub-processors)
+
+| Provider | Purpose | Data location |
+| --- | --- | --- |
+| Google Firebase Authentication | User authentication | EU and US (multi-region) |
+| Google Firestore | User profile and credit storage | EU (configurable) |
+| Google Gemini API | AI processing of manuscript content | US (Google data centers) |
+| Render, Inc. | Application hosting | Frankfurt, Germany (EU) |
+| Stripe, Inc. | Payment processing | US, with EU data processing terms |
+
+Transfers to processors outside the EEA are protected by the EU–US Data Privacy Framework and Standard Contractual Clauses where applicable.
+
+## 8. Your Rights Under GDPR
+
+You have the right of access, rectification, erasure, restriction, data portability, and objection. You may withdraw consent at any time and lodge a complaint with the Spanish Data Protection Agency (AEPD) at www.aepd.es.
+
+To exercise any of these rights, email ${PRIVACY_EMAIL}. We will respond within 30 days.
+
+## 9. Cookies and Local Storage
+
+We use strictly necessary cookies for authentication and session management (no consent required); browser local storage to count free-tier searches before signup and remember UI preferences; and no third-party advertising or tracking cookies.
+
+## 10. Children
+
+The Service is not directed at children under 16. We do not knowingly collect data from children under 16.
+
+## 11. Security
+
+We implement reasonable technical and organizational measures to protect your data, including encryption in transit (HTTPS/TLS), encryption at rest, access controls, and regular security reviews. In case of a data breach, we will notify the AEPD and affected users within 72 hours of becoming aware.
+
+## 12. Changes to This Policy
+
+We may update this policy from time to time. For material changes, we will notify registered users by email at least 14 days before the change takes effect.
+
+## 13. Contact
+
+Email: ${PRIVACY_EMAIL}. Postal: [LEGAL ENTITY NAME], [ADDRESS], Spain.
+
+If you are not satisfied with our response, you may file a complaint with the Agencia Española de Protección de Datos (AEPD) at www.aepd.es.`;
+
+/* TERMS OF SERVICE */
+const TERMS_TEXT=`# Terms of Service
+
+**Last updated: [DATE TO FILL IN BEFORE PUBLISHING]**
+
+These Terms of Service ("Terms") govern your access to and use of PubFit (the "Service") at pubfit.ai. By creating an account or using the Service, you agree to be bound by these Terms. If you do not agree, do not use the Service.
+
+## 1. Who We Are
+
+The Service is operated by **[LEGAL ENTITY NAME — e.g., ReviewPRO.io S.L.]**, [REGISTERED ADDRESS], [CITY], Spain. CIF/NIF: [TAX ID]. Contact: ${CONTACT_EMAIL}.
+
+## 2. Description of the Service
+
+PubFit is an AI-assisted journal recommendation tool for academic researchers. The Service analyzes manuscript content you submit and returns recommendations of academic journals that may be a suitable fit for publication, along with optional manuscript tailoring advice and downloadable reports.
+
+**Recommendations are advisory only.** The Service uses statistical and AI methods to estimate fit between your manuscript and journals in our database. Recommendations are not endorsements, do not guarantee acceptance, and do not replace your own judgment. You are solely responsible for your submission decisions.
+
+## 3. Account Registration
+
+To access most features, you must create an account using a valid email address or a Google account. You agree to provide accurate information, maintain the security of your credentials, notify us promptly of any unauthorized use, and be responsible for all activity under your account. You must be at least 16 years old to create an account.
+
+## 4. Free Tier and Credit Packs
+
+**Free tier**: One anonymous search is available without signup. After signup, the free tier provides unlimited searches with up to 3 results per search and access to basic features.
+
+**Credit packs**: Premium features (up to 10 results, advanced filters, manuscript tailoring, DOCX reports) require credits. Credits are sold in one-time packs and are valid for **1 year from the date of purchase**. Each search consumes 1 credit when premium features are active.
+
+**Payment.** Credit packs are processed through Stripe. We do not store payment card details on our servers.
+
+**Expiration.** Unused credits expire 12 months after purchase. Expired credits are not refundable.
+
+**No automatic renewal.** Credit packs are one-time purchases. There is no recurring subscription unless you explicitly purchase a separate institutional contract.
+
+## 5. Right of Withdrawal (EU Consumers)
+
+If you are a consumer in the EU and you purchase a credit pack, you have the right to withdraw from the contract within 14 days without giving a reason, under Directive 2011/83/EU and Spanish consumer law.
+
+**Important**: by purchasing credits and immediately consuming any of them, you expressly request that we begin providing the Service before the 14-day withdrawal period ends. If you withdraw after consuming credits, you are obligated to pay for the credits used at our standard per-credit rate.
+
+To exercise the right of withdrawal, email ${CONTACT_EMAIL} with your account email and the words "I wish to withdraw from the contract."
+
+This right does not apply to business users or institutional contracts.
+
+## 6. Acceptable Use
+
+You agree not to use the Service to violate any law or third-party right; submit content that is illegal, defamatory, or infringing; use automated tools to scrape or mass-extract data; attempt unauthorized access to other accounts or our systems; reverse engineer the Service; develop a competing product; or submit content that violates academic integrity.
+
+We reserve the right to suspend or terminate accounts that violate these rules.
+
+## 7. Your Content
+
+You retain all ownership of the manuscript content, abstracts, and other text you submit ("Your Content"). You grant us a limited, non-exclusive license to process Your Content solely for the purpose of providing the Service to you, including transmitting it to AI processing providers as described in our Privacy Policy.
+
+We do not claim ownership of Your Content. We do not sell, license, or share Your Content with publishers, advertisers, or any party other than the technical processors disclosed in our Privacy Policy.
+
+## 8. Our Intellectual Property
+
+The Service, including its software, design, journal database, recommendation algorithms, and all related materials, is owned by us or our licensors. We grant you a limited, non-transferable, revocable license to use the Service in accordance with these Terms.
+
+## 9. AI-Generated Content and Limitations
+
+The Service uses third-party AI models (currently Google Gemini) to generate recommendations and advisory content. AI-generated content may be inaccurate, incomplete, biased, or out of date. Journal recommendations are based on similarity scoring and AI re-ranking, which can produce mismatches. Tailoring advice reflects general patterns and may not align with a specific journal's current editorial preferences. The journal database is updated periodically but may not include all journals.
+
+**You should treat all output as a starting point for your own research, not as authoritative guidance.** We are not liable for editorial decisions made by journals you submit to.
+
+## 10. Service Availability
+
+We aim for high availability but do not guarantee uninterrupted Service. The Service is provided on an "as is" and "as available" basis. We may add, modify, or remove features at any time.
+
+## 11. Disclaimers
+
+To the maximum extent permitted by law, the Service is provided without warranties of any kind, express or implied. We do not warrant that the Service will meet your requirements, be error-free, or produce specific outcomes (such as journal acceptance). We are not responsible for editorial, peer review, or publication decisions of any journal.
+
+## 12. Limitation of Liability
+
+To the maximum extent permitted by law, our total aggregate liability arising out of or related to the Service is limited to the amount you paid us in the 12 months before the event, or €100, whichever is greater. We are not liable for indirect, incidental, special, consequential, or punitive damages, even if advised of the possibility. These limitations do not apply to liability for fraud, gross negligence, willful misconduct, or matters that cannot be limited under applicable law.
+
+## 13. Indemnification
+
+You agree to indemnify and hold us harmless from any claims, damages, or costs arising from your violation of these Terms, your misuse of the Service, or your infringement of any third-party right.
+
+## 14. Termination
+
+You may close your account at any time through your account settings or by emailing us. We may suspend or terminate your account if you violate these Terms, if required by law, or if we discontinue the Service.
+
+## 15. Changes to These Terms
+
+We may update these Terms from time to time. For material changes, we will notify registered users by email at least 14 days before the change takes effect. Continued use of the Service after a change indicates your acceptance.
+
+## 16. Governing Law and Disputes
+
+These Terms are governed by the laws of Spain. Any dispute will be subject to the exclusive jurisdiction of the courts of [CITY — e.g., Granada], Spain, except that consumers may bring claims in the courts of their place of residence as required by EU consumer law.
+
+EU consumers may also use the European Commission's Online Dispute Resolution platform at https://ec.europa.eu/consumers/odr/.
+
+## 17. Contact
+
+Email: ${CONTACT_EMAIL}. Postal: [LEGAL ENTITY NAME], [ADDRESS], Spain.`;
+
+function PrivacyPage(){return(<div className="bg-white"><div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><MdLite src={PRIVACY_TEXT}/></div></div>);}
+function TermsPage(){return(<div className="bg-white"><div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><MdLite src={TERMS_TEXT}/></div></div>);}
+
 /* APP */
-function App(){const {path}=useRouter();const pg=path.startsWith('/dashboard')?'d':path.startsWith('/features')?'f':path.startsWith('/pricing')?'p':path.startsWith('/about')?'a':path.startsWith('/account')?'ac':'h';
-return(<AuthProvider><div className="min-h-screen flex flex-col"><Navigation path={path}/><main className="flex-1">{pg==='h'&&<HomePage/>}{pg==='d'&&<DashboardPage/>}{pg==='f'&&<FeaturesPage/>}{pg==='p'&&<PricingPage/>}{pg==='a'&&<AboutPage/>}{pg==='ac'&&<AccountPage/>}</main><Footer/></div></AuthProvider>);}
+function App(){
+  const {path}=useRouter();
+  const pg=path.startsWith('/dashboard')?'d':path.startsWith('/features')?'f':path.startsWith('/pricing')?'p':path.startsWith('/about')?'a':path.startsWith('/account')?'ac':path.startsWith('/privacy')?'pv':path.startsWith('/terms')?'tm':'h';
+  return(<AuthProvider><div className="min-h-screen flex flex-col"><Navigation path={path}/><main className="flex-1">{pg==='h'&&<HomePage/>}{pg==='d'&&<DashboardPage/>}{pg==='f'&&<FeaturesPage/>}{pg==='p'&&<PricingPage/>}{pg==='a'&&<AboutPage/>}{pg==='ac'&&<AccountPage/>}{pg==='pv'&&<PrivacyPage/>}{pg==='tm'&&<TermsPage/>}</main><Footer/></div></AuthProvider>);
+}
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
 </script>
 </body>
