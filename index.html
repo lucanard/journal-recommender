@@ -80,30 +80,38 @@ function AuthProvider({children}){
   const [creditsExpireAt,setCreditsExpireAt]=useState(null);
   const [totalSearches,setTotalSearches]=useState(0);
   const [loading,setLoading]=useState(true);
+  /* All writes use set(..., {merge:true}) for consistency:
+   *   - works whether doc exists or not (no update-on-missing failures)
+   *   - only touches specified fields (won't clobber stripe-written fields later)
+   *   - single rule predicate applies to all paths (no create-vs-update mismatch)
+   */
   const refreshUserDoc=useCallback(async(u)=>{
     if(!u)return;
     try{
       const ref=fbDb.collection('users').doc(u.uid);
       const doc=await ref.get();
       if(!doc.exists){
-        // First login: create empty profile, no credits
-        await ref.set({email:u.email,created:new Date().toISOString(),credits:0,credits_expire_at:null,total_searches:0,purchases:[]});
+        // First login: initialize empty profile
+        const init={email:u.email,created:new Date().toISOString(),credits:0,credits_expire_at:null,total_searches:0,purchases:[]};
+        await ref.set(init,{merge:true});
         setCredits(0);setCreditsExpireAt(null);setTotalSearches(0);
-      }else{
-        const d=doc.data();
-        // Migration: if old doc has plan field but no credits, grant 60 credits/1yr to legacy 'premium'
-        if(d.plan&&typeof d.credits==='undefined'){
-          const legacyCredits=d.plan==='premium'?60:0;
-          const expiry=legacyCredits>0?new Date(Date.now()+365*24*3600*1000).toISOString():null;
-          await ref.update({credits:legacyCredits,credits_expire_at:expiry,total_searches:d.searches||0,purchases:[]});
-          setCredits(legacyCredits);setCreditsExpireAt(expiry);setTotalSearches(d.searches||0);
-        }else{
-          setCredits(d.credits||0);
-          setCreditsExpireAt(d.credits_expire_at||null);
-          setTotalSearches(d.total_searches||d.searches||0);
-        }
+        return;
       }
-    }catch(e){console.error('Firestore read:',e);setCredits(0);setCreditsExpireAt(null);}
+      const d=doc.data();
+      // Migration: doc exists but lacks `credits` field (pre-credits-system account)
+      if(typeof d.credits==='undefined'){
+        const legacyCredits=d.plan==='premium'?60:0;
+        const expiry=legacyCredits>0?new Date(Date.now()+365*24*3600*1000).toISOString():null;
+        const migrated={credits:legacyCredits,credits_expire_at:expiry,total_searches:d.searches||0,purchases:d.purchases||[]};
+        await ref.set(migrated,{merge:true});
+        setCredits(legacyCredits);setCreditsExpireAt(expiry);setTotalSearches(d.searches||0);
+        return;
+      }
+      // Normal path: doc already has credits field
+      setCredits(d.credits||0);
+      setCreditsExpireAt(d.credits_expire_at||null);
+      setTotalSearches(d.total_searches||d.searches||0);
+    }catch(e){console.error('Firestore sync failed:',e);setCredits(0);setCreditsExpireAt(null);}
   },[]);
   useEffect(()=>{
     const unsub=fbAuth.onAuthStateChanged(async(u)=>{
@@ -286,7 +294,7 @@ function DashboardPage(){
         try{
           const updates={total_searches:firebase.firestore.FieldValue.increment(1)};
           if(hasCredits){updates.credits=firebase.firestore.FieldValue.increment(-1);}
-          await fbDb.collection('users').doc(user.uid).update(updates);
+          await fbDb.collection('users').doc(user.uid).set(updates,{merge:true});
           refreshUserDoc();
         }catch(x){console.error('Search bookkeeping:',x);}
       }
