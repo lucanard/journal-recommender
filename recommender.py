@@ -426,18 +426,38 @@ class RecommendationEngine:
         raw_results = self.store.search(query_embedding, top_k=search_k)
         timing["search_ms"] = int((time.time() - t0) * 1000)
 
-        # Step 1b: Minimum similarity filter — discard very low matches
-        MIN_SIMILARITY = 0.10  # Below this, the match is essentially random
-        if raw_results and raw_results[0]["score"] < MIN_SIMILARITY:
-            log.warning(f"Best match score {raw_results[0]['score']:.4f} below threshold {MIN_SIMILARITY}. Abstract may not be meaningful.")
+        # Step 1b: Abstract quality assessment from match scores
+        # ─────────────────────────────────────────────────────
+        # Tier the top match score into three levels:
+        #   "ok"         — top score >= 0.25 (normal usable results)
+        #   "weak"       — 0.10 <= top score < 0.25 (results exist but abstract is general;
+        #                  user gets a hint to improve their input)
+        #   "too_generic"— top score < 0.10 (essentially random; return empty with message)
+        # Thresholds are conservative — better to be a little chatty than to silently
+        # return weak results to a paying user.
+        MIN_SIMILARITY = 0.10
+        WEAK_THRESHOLD = 0.25
+        top_score = raw_results[0]["score"] if raw_results else 0.0
+        if top_score < MIN_SIMILARITY:
+            log.warning(f"Top match {top_score:.4f} below MIN_SIMILARITY — abstract too generic.")
             return {
                 "recommendations": [],
-                "analysis_summary": "No meaningful matches found. The abstract may be too short, too general, or not contain recognizable scientific content. Please paste a complete research abstract.",
+                "analysis_summary": (
+                    "Your abstract appears too short, too general, or not focused enough "
+                    "for a meaningful match. Try adding: (1) a clearer statement of your "
+                    "research question, (2) specific methodology terms, (3) key findings or "
+                    "outcomes, and (4) 3–5 specific keywords from your field."
+                ),
+                "abstract_quality": "too_generic",
+                "top_match_score": round(top_score, 4),
                 "timing": timing,
                 "candidates_searched": len(raw_results),
                 "candidates_after_filter": 0,
                 "constraints_relaxed": False,
             }
+        abstract_quality = "weak" if top_score < WEAK_THRESHOLD else "ok"
+        if abstract_quality == "weak":
+            log.info(f"Abstract quality 'weak' (top score {top_score:.4f}) — will surface hint to user.")
 
         # Step 2: Constraint filter
         t0 = time.time()
@@ -518,6 +538,8 @@ class RecommendationEngine:
         return {
             "recommendations": [asdict(r) for r in recs],
             "analysis_summary": summary,
+            "abstract_quality": abstract_quality,
+            "top_match_score": round(top_score, 4),
             "timing": timing,
             "candidates_searched": len(raw_results),
             "candidates_after_filter": len(filtered) if not relaxed else 0,
@@ -710,6 +732,11 @@ RULES — REFERENCES SIGNAL (two related fields):
 - Do NOT promote a candidate purely on these signals if scope clearly mismatches the abstract.
 - Do NOT collapse the top results onto a single journal even when one has high cited_in_user_refs; keep diversity within the topical cluster so the user has real options to choose from.
 
+RULES — DIVERSITY:
+- Avoid concentrating top results in one publisher. Aim for at most 2 journals from the same publisher in the top 5 positions, even when the same publisher has multiple strong candidates.
+- The user wants real options to choose from, not a single publisher's catalog.
+- This is a SOFT rule: if a journal is clearly the best fit by scope and methodology, keep it ranked highly. But when fit is comparable, prefer publisher diversity.
+
 Respond ONLY with valid JSON (no markdown, no backticks):
 {
   "recommendations": [
@@ -838,6 +865,37 @@ Select the top {num_results}. For EVERY journal: state publishing model (especia
                 else:
                     for r in recs:
                         r.concern = f"WARNING: may charge APC ({r.apc_estimate}). " + r.concern
+
+            # Publisher diversity enforcement (hard cap)
+            # ─────────────────────────────────────────
+            # Even with a soft prompt instruction, the LLM sometimes returns 3+ from one
+            # publisher in the top 5. We enforce: at most 2 of any single publisher in the
+            # top 5. Excess journals get pushed down past position 5 (preserving the LLM's
+            # within-publisher order). Only kicks in when we have >5 results.
+            if len(recs) > 5:
+                top, tail = recs[:5], recs[5:]
+                pub_counts = {}
+                kept_top, demoted = [], []
+                for r in top:
+                    pub = (r.publisher or "").strip().lower() or "unknown"
+                    if pub_counts.get(pub, 0) < 2:
+                        kept_top.append(r)
+                        pub_counts[pub] = pub_counts.get(pub, 0) + 1
+                    else:
+                        demoted.append(r)
+                        log.info(f"Diversity: demoting {r.journal_name} (3rd from publisher '{r.publisher}')")
+                # Promote from tail to refill top to 5
+                while len(kept_top) < 5 and tail:
+                    promoted = tail.pop(0)
+                    pub = (promoted.publisher or "").strip().lower() or "unknown"
+                    # Allow promotion even if it would also break the 2-per-publisher rule
+                    # (better than leaving the top short)
+                    kept_top.append(promoted)
+                    pub_counts[pub] = pub_counts.get(pub, 0) + 1
+                recs = kept_top + demoted + tail
+                # Renumber ranks after reordering
+                for i, r in enumerate(recs, 1):
+                    r.rank = i
 
             return recs, parsed.get("analysis_summary", "")
 
