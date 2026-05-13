@@ -273,7 +273,29 @@ function DashboardPage(){
   const [busy,setBusy]=useState(false);const [err,setErr]=useState('');const [res,setRes]=useState(null);const [sf,setSf]=useState(false);const [sm,setSm]=useState(false);
   const [tj,setTj]=useState(null);const [td,setTd]=useState(null);const [tl,setTl]=useState(false);
   const [showAuth,setShowAuth]=useState(false);const [authMsg,setAuthMsg]=useState('');const [showCredits,setShowCredits]=useState(false);const [creditFeat,setCreditFeat]=useState('');
+  const [purchaseOK,setPurchaseOK]=useState(false);
   const rRef=useRef(null);
+  // Detect ?purchase=success on mount → refresh user doc + show banner + clean URL.
+  // Stripe webhook should have credited by the time the user redirects back, but it's
+  // async so we also poll a few times to catch any 1–2s delay.
+  useEffect(()=>{
+    const params=new URLSearchParams(window.location.search);
+    if(params.get('purchase')==='success'){
+      setPurchaseOK(true);
+      // Poll user doc a few times to pick up the webhook-granted credits
+      let attempts=0;
+      const tick=()=>{
+        refreshUserDoc&&refreshUserDoc();
+        attempts++;
+        if(attempts<5)setTimeout(tick,1500);
+      };
+      tick();
+      // Clean the URL so a refresh doesn't re-trigger the banner
+      window.history.replaceState({},'',window.location.pathname);
+      // Auto-hide banner after 15s
+      setTimeout(()=>setPurchaseOK(false),15000);
+    }
+  },[refreshUserDoc]);
   const AT=["Original Research","Review Article","Systematic Review","Meta-Analysis","Case Report","Case Series","Short Communication / Brief Report","Letter to the Editor","Editorial","Commentary / Opinion","Perspective","Methods / Protocols","Technical Note","Book Review","Conference Paper","Data Paper / Data Article"];
   const DS=["Any","Agricultural Sciences","Biochemistry & Molecular Biology","Biomedical Engineering","Chemistry","Clinical Medicine","Computer Science & AI","Earth & Environmental Sciences","Ecology & Evolution","Economics & Business","Education","Engineering","Epidemiology & Public Health","Food Science & Nutrition","Genetics & Genomics","Humanities & Social Sciences","Immunology","Law","Materials Science","Mathematics & Statistics","Microbiology","Neuroscience","Nursing & Health Professions","Pharmacology & Toxicology","Physics & Astronomy","Psychology & Psychiatry","Veterinary Science","Other"];
   const IX=["PubMed/MEDLINE","DOAJ","Scopus","Web of Science","Embase","PsycINFO","CINAHL","ERIC","EconLit","MathSciNet","zbMATH","Chemical Abstracts Service (CAS)","Inspec","GeoRef","AGRIS","Emerging Sources Citation Index (ESCI)","SCImago (SJR)"];
@@ -316,6 +338,7 @@ function DashboardPage(){
       {!user&&<div className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-[#14B8A6]/10 rounded-lg text-sm text-[#0F9B8E] font-medium"><span className="w-4 h-4"><I.Sparkles/></span>{getFreeSearches()>=1?'Sign up to continue searching':'1 free search — try it now!'}</div>}
       {user&&hasCredits&&<div className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-[#14B8A6]/10 rounded-lg text-sm text-[#0F9B8E] font-medium"><span className="w-4 h-4"><I.Coin/></span>{credits} credit{credits===1?'':'s'} — premium features active</div>}
       {user&&!hasCredits&&<div className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg text-sm text-gray-700"><span className="w-4 h-4"><I.Coin/></span>0 credits — searches limited to 3 results, no filters or tailoring. <Link to="/pricing" className="ml-1 text-[#14B8A6] font-semibold hover:underline">Get credits →</Link></div>}
+      {purchaseOK&&<div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm flex items-start gap-2"><span className="w-5 h-5 flex-shrink-0 mt-0.5"><I.Check/></span><div><strong>Payment successful — credits added to your account.</strong> {credits>0?`You now have ${credits} credit${credits===1?'':'s'}.`:'Your credits will appear in a few seconds (refresh if needed).'}</div></div>}
     </div>
     <div className="grid lg:grid-cols-3 gap-8"><div className="lg:col-span-2">
       <form onSubmit={doSearch} className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 fade-in"><h2 className="text-2xl font-bold text-[#1E3A8A] mb-6">New Search</h2><div className="space-y-6">
@@ -402,12 +425,30 @@ function AboutPage(){return(<div className="bg-white">
 
 /* PRICING — credit packs + institutional */
 function PricingPage(){
+  const {user}=useAuth();
+  const [buying,setBuying]=useState(null);  // pack_id currently being processed
+  const [buyErr,setBuyErr]=useState('');
+  const [showAuth,setShowAuth]=useState(false);
+  const [authMsg,setAuthMsg]=useState('');
   const ps=[
     {name:'Free',price:'€0',badge:'No card needed',items:['1 free search (no signup)','Unlimited 3-result searches after signup','Basic filters'],cta:'Get started',ctaTo:'/dashboard',cs:'bg-gray-100 text-[#1E3A8A] hover:bg-gray-200'},
-    {name:'Starter pack',price:'€15',badge:'5 credits',perCredit:'€3.00 / credit',items:['5 full premium searches','All advanced filters','Manuscript tailoring','DOCX reports','Valid 1 year'],cta:'Buy pack',ctaTo:'/dashboard',cs:'bg-[#14B8A6] text-white hover:bg-[#0F9B8E]'},
-    {name:'Standard pack',price:'€40',badge:'20 credits',perCredit:'€2.00 / credit',items:['20 full premium searches','All advanced filters','Manuscript tailoring','DOCX reports','Valid 1 year'],cta:'Buy pack',ctaTo:'/dashboard',best:true},
-    {name:'Power pack',price:'€90',badge:'60 credits',perCredit:'€1.50 / credit',items:['60 full premium searches','All advanced filters','Manuscript tailoring','DOCX reports','Valid 1 year'],cta:'Buy pack',ctaTo:'/dashboard',cs:'bg-[#14B8A6] text-white hover:bg-[#0F9B8E]'},
+    {name:'Starter pack',pack_id:'starter',price:'€15',badge:'5 credits',perCredit:'€3.00 / credit',items:['5 full premium searches','All advanced filters','Manuscript tailoring','DOCX reports','Valid 1 year'],cta:'Buy pack',cs:'bg-[#14B8A6] text-white hover:bg-[#0F9B8E]'},
+    {name:'Standard pack',pack_id:'standard',price:'€40',badge:'20 credits',perCredit:'€2.00 / credit',items:['20 full premium searches','All advanced filters','Manuscript tailoring','DOCX reports','Valid 1 year'],cta:'Buy pack',best:true},
+    {name:'Power pack',pack_id:'power',price:'€90',badge:'60 credits',perCredit:'€1.50 / credit',items:['60 full premium searches','All advanced filters','Manuscript tailoring','DOCX reports','Valid 1 year'],cta:'Buy pack',cs:'bg-[#14B8A6] text-white hover:bg-[#0F9B8E]'},
   ];
+  // Show cancellation banner if user came back from a cancelled Stripe checkout
+  const cancelled=typeof window!=='undefined'&&window.location.search.includes('purchase=cancelled');
+  async function buyPack(pack_id){
+    if(!user){setAuthMsg('Sign in to buy a credit pack — your purchase will be linked to your account.');setShowAuth(true);return;}
+    setBuyErr('');setBuying(pack_id);
+    try{
+      const r=await fetch(API+'/create-checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pack_id,uid:user.uid,email:user.email})});
+      if(!r.ok){const d=await r.json().catch(()=>({detail:r.statusText}));throw new Error(d.detail||'Failed to start checkout');}
+      const data=await r.json();
+      if(!data.url)throw new Error('No checkout URL returned');
+      window.location.href=data.url;  // Redirect to Stripe-hosted checkout
+    }catch(x){setBuyErr(x.message);setBuying(null);}
+  }
   // Anchor jump for /pricing#institutional
   useEffect(()=>{if(window.location.hash.includes('#institutional')){const el=document.getElementById('institutional');if(el)setTimeout(()=>el.scrollIntoView({behavior:'smooth'}),100);}},[]);
 useEffect(()=>{
@@ -430,10 +471,15 @@ useEffect(()=>{
 },[]);
   return(<div className="bg-white">
   <section className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white py-20"><div className="max-w-4xl mx-auto px-4 text-center"><h1 className="text-5xl font-bold mb-6">Pay only for what you use</h1><p className="text-xl text-gray-100">Buy credits — no subscriptions, valid for 1 year.</p></div></section>
-  <section className="py-20"><div className="max-w-7xl mx-auto px-4"><div className="grid md:grid-cols-4 gap-6">{ps.map((p,i)=>p.best?
-    <div key={i} className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white border-2 border-[#14B8A6] rounded-xl p-6 relative transform md:scale-105 shadow-xl"><div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#14B8A6] rounded-full text-sm font-semibold">Best Value</div><h3 className="text-xl font-bold mb-2">{p.name}</h3><div className="mb-2"><span className="text-4xl font-bold">{p.price}</span></div>{p.badge&&<div className="mb-2 text-sm font-bold">{p.badge}</div>}{p.perCredit&&<div className="mb-4 text-xs text-gray-100">{p.perCredit}</div>}<ul className="space-y-3 mb-8">{p.items.map((x,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-sm">{x}</span></li>)}</ul><Link to={p.ctaTo} className="block w-full py-3 bg-white text-[#1E3A8A] text-center font-semibold rounded-lg hover:bg-gray-100">{p.cta}</Link></div>
-    :<div key={i} className="bg-white border-2 border-gray-200 rounded-xl p-6"><h3 className="text-xl font-bold text-[#1E3A8A] mb-2">{p.name}</h3><div className="mb-2"><span className="text-4xl font-bold text-[#1E3A8A]">{p.price}</span></div>{p.badge&&<div className="mb-2 text-sm font-bold text-[#14B8A6]">{p.badge}</div>}{p.perCredit&&<div className="mb-4 text-xs text-gray-500">{p.perCredit}</div>}<ul className="space-y-3 mb-8">{p.items.map((x,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 text-[#14B8A6] flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-sm text-gray-600">{x}</span></li>)}</ul><Link to={p.ctaTo} className={`block w-full py-3 text-center font-semibold rounded-lg ${p.cs}`}>{p.cta}</Link></div>
-  )}</div><p className="text-center text-sm text-gray-500 mt-8">Payment processing coming soon — contact us at <a href={`mailto:${CONTACT_EMAIL}`} className="text-[#14B8A6] hover:underline">{CONTACT_EMAIL}</a> for early access.</p></div></section>
+  <section className="py-20"><div className="max-w-7xl mx-auto px-4">
+    {cancelled&&<div className="max-w-3xl mx-auto mb-8 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm text-center">Checkout cancelled — no charge was made. Pick a pack below to try again.</div>}
+    {buyErr&&<div className="max-w-3xl mx-auto mb-8 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm text-center">{buyErr}</div>}
+    <div className="grid md:grid-cols-4 gap-6">{ps.map((p,i)=>p.best?
+    <div key={i} className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white border-2 border-[#14B8A6] rounded-xl p-6 relative transform md:scale-105 shadow-xl"><div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#14B8A6] rounded-full text-sm font-semibold">Best Value</div><h3 className="text-xl font-bold mb-2">{p.name}</h3><div className="mb-2"><span className="text-4xl font-bold">{p.price}</span></div>{p.badge&&<div className="mb-2 text-sm font-bold">{p.badge}</div>}{p.perCredit&&<div className="mb-4 text-xs text-gray-100">{p.perCredit}</div>}<ul className="space-y-3 mb-8">{p.items.map((x,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-sm">{x}</span></li>)}</ul>{p.pack_id?<button onClick={()=>buyPack(p.pack_id)} disabled={buying===p.pack_id} className="block w-full py-3 bg-white text-[#1E3A8A] text-center font-semibold rounded-lg hover:bg-gray-100 disabled:opacity-60">{buying===p.pack_id?'Opening checkout…':p.cta}</button>:<Link to={p.ctaTo} className="block w-full py-3 bg-white text-[#1E3A8A] text-center font-semibold rounded-lg hover:bg-gray-100">{p.cta}</Link>}</div>
+    :<div key={i} className="bg-white border-2 border-gray-200 rounded-xl p-6"><h3 className="text-xl font-bold text-[#1E3A8A] mb-2">{p.name}</h3><div className="mb-2"><span className="text-4xl font-bold text-[#1E3A8A]">{p.price}</span></div>{p.badge&&<div className="mb-2 text-sm font-bold text-[#14B8A6]">{p.badge}</div>}{p.perCredit&&<div className="mb-4 text-xs text-gray-500">{p.perCredit}</div>}<ul className="space-y-3 mb-8">{p.items.map((x,j)=><li key={j} className="flex items-start gap-2"><span className="w-5 h-5 text-[#14B8A6] flex-shrink-0 mt-0.5"><I.Check/></span><span className="text-sm text-gray-600">{x}</span></li>)}</ul>{p.pack_id?<button onClick={()=>buyPack(p.pack_id)} disabled={buying===p.pack_id} className={`block w-full py-3 text-center font-semibold rounded-lg disabled:opacity-60 ${p.cs}`}>{buying===p.pack_id?'Opening checkout…':p.cta}</button>:<Link to={p.ctaTo} className={`block w-full py-3 text-center font-semibold rounded-lg ${p.cs}`}>{p.cta}</Link>}</div>
+  )}</div><p className="text-center text-sm text-gray-500 mt-8">Secure payment processed by Stripe. Need an invoice or institutional billing? <a href={`mailto:${CONTACT_EMAIL}`} className="text-[#14B8A6] hover:underline">Contact us</a>.</p>
+  {showAuth&&<AuthModal onClose={()=>setShowAuth(false)} initialMode="signup" message={authMsg}/>}
+  </div></section>
   {/* INSTITUTIONAL */}
   <section id="institutional" className="py-20 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white"><div className="max-w-5xl mx-auto px-4">
     <div className="text-center mb-10"><span className="inline-block w-16 h-16 bg-white/20 rounded-xl items-center justify-center p-4 mb-4"><I.Building/></span><h2 className="text-4xl font-bold mb-4">For institutions and departments</h2><p className="text-xl text-gray-100 max-w-2xl mx-auto">Annual contracts, custom seat counts, and invoicing. Available to universities, research institutes, and corporate R&amp;D teams.</p></div>

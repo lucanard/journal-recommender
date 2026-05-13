@@ -30,6 +30,88 @@ try:
 except ImportError:
     DOCX_AVAILABLE = False
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Stripe + Firebase Admin SDK (for payments)
+# ─────────────────────────────────────────────────────────────────────────────
+# Both are optional at import time — if not installed or not configured, the
+# /create-checkout-session and /stripe-webhook endpoints will return 503
+# rather than crashing the whole app. This means the recommendation API keeps
+# working even if a deploy issue breaks the payments stack.
+try:
+    import stripe
+    STRIPE_AVAILABLE = True
+except ImportError:
+    STRIPE_AVAILABLE = False
+
+try:
+    import firebase_admin
+    from firebase_admin import credentials, firestore as fb_firestore
+    FIREBASE_ADMIN_AVAILABLE = True
+except ImportError:
+    FIREBASE_ADMIN_AVAILABLE = False
+
+# Initialized lazily on first webhook hit (avoids slowing startup)
+_firestore_client = None
+_firebase_init_attempted = False
+
+def _get_firestore_client():
+    """Lazily initialize Firebase Admin SDK and return a Firestore client.
+
+    Credentials are loaded in this order:
+      1. FIREBASE_ADMIN_SDK_FILE env var → path to a JSON file (e.g. Render Secret File)
+      2. Default Render Secret File location: /etc/secrets/firebase-admin.json
+      3. FIREBASE_ADMIN_SDK_JSON env var → JSON content as a string (fallback)
+    """
+    global _firestore_client, _firebase_init_attempted
+    if _firestore_client is not None:
+        return _firestore_client
+    if _firebase_init_attempted:
+        return None  # already tried and failed
+    _firebase_init_attempted = True
+    if not FIREBASE_ADMIN_AVAILABLE:
+        log.error("firebase-admin not installed. Run: pip install firebase-admin")
+        return None
+
+    cred = None
+    # Try file-based credentials first (cleaner on Render)
+    file_candidates = [
+        os.environ.get("FIREBASE_ADMIN_SDK_FILE"),
+        "/etc/secrets/firebase-admin.json",
+    ]
+    for path in file_candidates:
+        if path and Path(path).is_file():
+            try:
+                cred = credentials.Certificate(path)
+                log.info(f"Firebase Admin SDK loaded from file: {path}")
+                break
+            except Exception as e:
+                log.warning(f"Firebase cred file '{path}' present but failed to load: {e}")
+
+    # Fall back to JSON-string env var
+    if cred is None:
+        cred_json = os.environ.get("FIREBASE_ADMIN_SDK_JSON")
+        if cred_json:
+            try:
+                cred = credentials.Certificate(json.loads(cred_json))
+                log.info("Firebase Admin SDK loaded from FIREBASE_ADMIN_SDK_JSON env var.")
+            except Exception as e:
+                log.error(f"FIREBASE_ADMIN_SDK_JSON failed to parse: {e}")
+                return None
+
+    if cred is None:
+        log.error("No Firebase credentials found. Provide either a Secret File "
+                  "(/etc/secrets/firebase-admin.json) or FIREBASE_ADMIN_SDK_JSON env var.")
+        return None
+
+    try:
+        firebase_admin.initialize_app(cred)
+        _firestore_client = fb_firestore.client()
+        log.info("Firebase Admin SDK initialized successfully.")
+        return _firestore_client
+    except Exception as e:
+        log.error(f"Firebase Admin SDK init failed: {e}")
+        return None
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("journal-api")
 
@@ -991,6 +1073,217 @@ def get_disciplines():
         "disciplines": DISCIPLINES,
         "article_types": ARTICLE_TYPES,
         "indexing_options": INDEXING_OPTIONS,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Stripe payment endpoints
+# ═══════════════════════════════════════════════════════════════════════════════
+# Architecture:
+#   1. Frontend "Buy pack" button POSTs to /create-checkout-session
+#      with {pack_id, uid}. We create a Stripe Checkout Session and return
+#      the URL. Frontend redirects user to it.
+#   2. User pays on stripe.com. On success, Stripe:
+#      (a) redirects user's BROWSER to /dashboard?success=1 (UX only — does
+#          NOT grant credits because URLs are forgeable)
+#      (b) sends a signed WEBHOOK to /stripe-webhook (cryptographically
+#          trustworthy — this is where credits are actually granted)
+#   3. /stripe-webhook verifies the signature, then writes to Firestore via
+#      Firebase Admin SDK with idempotency protection.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Map our internal pack_id -> Stripe price_id + credit amount.
+# When you create the LIVE-mode products later, you'll change these price IDs.
+PACKS = {
+    "starter":  {"price_id": "price_1TWaIq0m3TPXZzVBKPgyq44G", "credits": 5,  "name": "Starter Pack"},
+    "standard": {"price_id": "price_1TWaJs0m3TPXZzVBKCEoGtUN", "credits": 20, "name": "Standard Pack"},
+    "power":    {"price_id": "price_1TWaKI0m3TPXZzVBQDNQC8E1", "credits": 60, "name": "Power Pack"},
+}
+
+
+class CheckoutRequest(BaseModel):
+    pack_id: str = Field(..., description="One of: starter, standard, power")
+    uid: str = Field(..., min_length=1, description="Firebase user UID")
+    email: Optional[str] = Field(None, description="Optional — Stripe will prefill")
+
+
+@app.post("/create-checkout-session")
+def create_checkout_session(request: CheckoutRequest):
+    """Create a Stripe Checkout Session for a credit pack purchase."""
+    if not STRIPE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Payments not configured: stripe library missing.")
+    stripe_key = os.environ.get("STRIPE_SECRET_KEY")
+    if not stripe_key:
+        raise HTTPException(status_code=503, detail="Payments not configured: STRIPE_SECRET_KEY missing.")
+    pack = PACKS.get(request.pack_id)
+    if not pack:
+        raise HTTPException(status_code=400, detail=f"Unknown pack_id '{request.pack_id}'. Valid: {list(PACKS.keys())}")
+
+    stripe.api_key = stripe_key
+    # Determine the public base URL for success/cancel redirects.
+    # Prefer explicit env var; fall back to pubfit.ai.
+    base_url = os.environ.get("PUBLIC_BASE_URL", "https://pubfit.ai").rstrip("/")
+    try:
+        session = stripe.checkout.Session.create(
+            mode="payment",  # one-time payment, not subscription
+            line_items=[{"price": pack["price_id"], "quantity": 1}],
+            # client_reference_id is how the webhook knows WHICH user to credit.
+            # Stripe passes this back verbatim in the webhook payload.
+            client_reference_id=request.uid,
+            customer_email=request.email,
+            # Pack ID stored in metadata so webhook knows how many credits to grant
+            # (rather than re-looking-up from price_id, which is brittle if prices change).
+            metadata={"pack_id": request.pack_id, "uid": request.uid},
+            success_url=f"{base_url}/dashboard?purchase=success&session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{base_url}/pricing?purchase=cancelled",
+            # Auto-collect billing address (required for EU VAT compliance via Stripe Tax,
+            # which we'll enable later — for now it's just collected).
+            billing_address_collection="required",
+            # Allow promo codes (you can disable later, useful for launch).
+            allow_promotion_codes=True,
+        )
+        log.info(f"Created checkout session {session.id} for uid={request.uid} pack={request.pack_id}")
+        return {"url": session.url, "session_id": session.id}
+    except stripe.error.StripeError as e:
+        log.error(f"Stripe checkout creation failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Stripe error: {str(e)}")
+
+
+@app.post("/stripe-webhook")
+async def stripe_webhook(request: Request):
+    """
+    Receive signed webhooks from Stripe. THIS is the only place where credits
+    are granted. Anyone hitting /dashboard?success=1 directly will NOT get
+    credits — only a verified webhook with a valid signature does.
+
+    Subscribe to event: checkout.session.completed
+    """
+    if not STRIPE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Stripe library missing.")
+    stripe_key = os.environ.get("STRIPE_SECRET_KEY")
+    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
+    if not stripe_key or not webhook_secret:
+        log.error("Stripe webhook called but STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET not set.")
+        raise HTTPException(status_code=503, detail="Webhook not configured.")
+    stripe.api_key = stripe_key
+
+    # CRITICAL: signature check requires the RAW body bytes, not parsed JSON.
+    # FastAPI's request.json() would corrupt the signature. Use request.body().
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except stripe.error.SignatureVerificationError as e:
+        log.warning(f"Stripe webhook signature INVALID: {e}")
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    except Exception as e:
+        log.error(f"Stripe webhook parse failed: {e}")
+        raise HTTPException(status_code=400, detail="Bad payload")
+
+    log.info(f"Stripe webhook received: {event['type']} (id={event['id']})")
+
+    # We currently only act on completed checkout sessions.
+    # Other events (refunds, disputes, etc.) are acknowledged but not processed.
+    if event["type"] != "checkout.session.completed":
+        return {"received": True, "ignored": True, "type": event["type"]}
+
+    session = event["data"]["object"]
+    uid = session.get("client_reference_id")
+    metadata = session.get("metadata") or {}
+    pack_id = metadata.get("pack_id")
+    session_id = session.get("id")
+    amount_total = session.get("amount_total", 0) / 100.0  # cents -> euros
+    customer_email = session.get("customer_details", {}).get("email") or session.get("customer_email")
+
+    if not uid or not pack_id:
+        log.error(f"Webhook missing uid or pack_id. session={session_id} uid={uid} pack={pack_id}")
+        # Return 200 anyway — Stripe would retry forever otherwise, and the data is irrecoverable.
+        return {"received": True, "error": "missing fields", "session_id": session_id}
+
+    pack = PACKS.get(pack_id)
+    if not pack:
+        log.error(f"Webhook unknown pack_id '{pack_id}' for session {session_id}")
+        return {"received": True, "error": "unknown pack", "session_id": session_id}
+
+    db = _get_firestore_client()
+    if db is None:
+        # If Firebase isn't reachable, return 500 so Stripe retries the webhook.
+        # That gives us a buffer to fix the issue without losing the credit grant.
+        log.error(f"Firebase unavailable; can't credit uid={uid} for session {session_id}. Stripe will retry.")
+        raise HTTPException(status_code=500, detail="Firestore unavailable")
+
+    try:
+        user_ref = db.collection("users").document(uid)
+        user_doc = user_ref.get()
+        if not user_doc.exists:
+            # User deleted account between checkout and webhook — extremely rare.
+            # Log and bail (returning 200 to stop retries).
+            log.error(f"User doc {uid} doesn't exist; can't credit. session={session_id}")
+            return {"received": True, "error": "user gone", "session_id": session_id}
+
+        user_data = user_doc.to_dict() or {}
+        existing_purchases = user_data.get("purchases", []) or []
+
+        # ── IDEMPOTENCY CHECK ──────────────────────────────────────────────
+        # Stripe retries webhooks on 5xx and on timeouts. If this exact session
+        # was already processed, skip. The check uses stripe_session_id which
+        # is unique per checkout.
+        if any(p.get("stripe_session_id") == session_id for p in existing_purchases):
+            log.info(f"Webhook idempotent skip: session {session_id} already credited to {uid}.")
+            return {"received": True, "idempotent_skip": True, "session_id": session_id}
+
+        # ── GRANT CREDITS ──────────────────────────────────────────────────
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        new_expiry = (now + timedelta(days=365)).isoformat()
+        purchase_record = {
+            "amount": amount_total,
+            "credits": pack["credits"],
+            "pack_id": pack_id,
+            "pack_name": pack["name"],
+            "purchased_at": now.isoformat(),
+            "expires_at": new_expiry,
+            "stripe_session_id": session_id,
+            "customer_email": customer_email,
+        }
+
+        # Use ArrayUnion to append + Increment to safely add credits, even under
+        # concurrent writes. The set(merge=True) pattern means if any of the
+        # fields don't exist yet (legacy user docs), they'll be created.
+        user_ref.set({
+            "credits": fb_firestore.Increment(pack["credits"]),
+            "credits_expire_at": new_expiry,  # reset to 1yr from THIS purchase
+            "purchases": fb_firestore.ArrayUnion([purchase_record]),
+        }, merge=True)
+
+        log.info(f"GRANTED {pack['credits']} credits to {uid} for session {session_id} (€{amount_total}, pack={pack_id})")
+        return {"received": True, "credited": pack["credits"], "uid": uid, "session_id": session_id}
+
+    except Exception as e:
+        log.error(f"Firestore write failed for session {session_id} uid {uid}: {e}")
+        # Return 500 so Stripe retries (up to 3 days by default).
+        raise HTTPException(status_code=500, detail=f"Credit grant failed: {str(e)}")
+
+
+@app.get("/stripe-debug")
+def stripe_debug():
+    """
+    Quick sanity-check endpoint to see if Stripe + Firebase are wired up.
+    Returns booleans only — no secrets leak. Remove after launch if you want.
+    """
+    secret_file_path = os.environ.get("FIREBASE_ADMIN_SDK_FILE") or "/etc/secrets/firebase-admin.json"
+    return {
+        "stripe_library_installed": STRIPE_AVAILABLE,
+        "stripe_key_set": bool(os.environ.get("STRIPE_SECRET_KEY")),
+        "webhook_secret_set": bool(os.environ.get("STRIPE_WEBHOOK_SECRET")),
+        "firebase_admin_installed": FIREBASE_ADMIN_AVAILABLE,
+        "firebase_secret_file_exists": Path(secret_file_path).is_file(),
+        "firebase_secret_file_path": secret_file_path,
+        "firebase_admin_json_env_set": bool(os.environ.get("FIREBASE_ADMIN_SDK_JSON")),
+        "firebase_client_ready": _get_firestore_client() is not None,
+        "packs_configured": list(PACKS.keys()),
+        "public_base_url": os.environ.get("PUBLIC_BASE_URL", "https://pubfit.ai"),
     }
 
 
