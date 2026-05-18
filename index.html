@@ -50,6 +50,7 @@ var fbDb=firebase.firestore();
 <script type="text/babel" data-type="module">
 const {useState,useEffect,useCallback,useRef,createContext,useContext}=React;
 const API=window.location.origin;
+const LOGO_SRC='data:image/jpeg;base64,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';
 
 /* CONFIG — replace these placeholders before going live */
 const TALLY_FORM_ID='kdO4Vj';        // create form at tally.so → copy form ID from share link
@@ -412,9 +413,16 @@ function FeaturesPage(){return(<div className="bg-white">
 /* ABOUT */
 function AboutPage(){return(<div className="bg-white">
 <section className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white py-20"><div className="max-w-4xl mx-auto px-4 text-center"><h1 className="text-5xl font-bold mb-6">Helping Researchers Publish Smarter</h1><p className="text-xl text-gray-100">Reducing publication stress through intelligent journal matching</p></div></section>
-<section className="py-20"><div className="max-w-4xl mx-auto px-4"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-8 text-center">Our Story</h2><p className="text-gray-600 text-lg leading-relaxed mb-6">PubFit was born from frustration. As active researchers, we (Irfan and Luca) spent countless hours manually searching for the right journals, only to face desk rejections.</p><p className="text-gray-600 text-lg leading-relaxed">So we built PubFit: a neutral, cross-publisher AI tool that matches your research with the right journals and gives you practical guidance to maximize acceptance chances.</p></div></section>
-<section className="py-20 bg-gray-50"><div className="max-w-7xl mx-auto px-4"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-12 text-center">Values</h2><div className="grid md:grid-cols-4 gap-8">{[{icon:<I.Target/>,t:'Neutrality',d:'No publisher bias.'},{icon:<I.Award/>,t:'Data-Driven',d:'Enriched database.'},{icon:<I.Users/>,t:'Researcher-First',d:'Built by researchers.'},{icon:<I.Heart/>,t:'Actionable',d:'We help you prepare.'}].map((v,i)=><div key={i} className="bg-white p-6 rounded-xl shadow-sm"><div className="w-12 h-12 bg-[#14B8A6] rounded-lg flex items-center justify-center mb-4 text-white"><span className="w-6 h-6">{v.icon}</span></div><h3 className="text-xl font-bold text-[#1E3A8A] mb-3">{v.t}</h3><p className="text-gray-600">{v.d}</p></div>)}</div></div></section>
-<section className="py-20"><div className="max-w-5xl mx-auto px-4"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-12 text-center">Team</h2><div className="grid md:grid-cols-2 gap-12">{[{n:'Irfan',l:'I',d:'AI and academic publishing. Co-created PubFit.'},{n:'Luca',l:'L',d:'Manuscript preparation and journal selection expert.'}].map((m,i)=><div key={i} className="text-center"><div className="w-32 h-32 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] rounded-full mx-auto mb-6 flex items-center justify-center"><span className="text-white text-4xl font-bold">{m.l}</span></div><h3 className="text-2xl font-bold text-[#1E3A8A] mb-2">{m.n}</h3><p className="text-[#14B8A6] font-semibold mb-4">Co-Founder</p><p className="text-gray-600">{m.d}</p></div>)}</div></div></section>
+<section className="py-20"><div className="max-w-4xl mx-auto px-4 grid md:grid-cols-[1fr_280px] gap-12 items-center"><div><h2 className="text-4xl font-bold text-[#1E3A8A] mb-8">Our Story</h2><p className="text-gray-600 text-lg leading-relaxed mb-6">PubFit was born from frustration. As active researchers, we spent countless hours manually searching for the right journals, only to face desk rejections from scope mismatches.</p><p className="text-gray-600 text-lg leading-relaxed">So we built PubFit: a neutral, cross-publisher AI tool that matches your research with the right journals and gives you practical guidance to maximize acceptance chances.</p></div><div className="hidden md:block"><img src={LOGO_SRC} alt="PubFit logo" className="w-full max-w-xs mx-auto"/></div></div></section>
+<section className="py-20 bg-gray-50"><div className="max-w-7xl mx-auto px-4"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-4 text-center">What We Stand For</h2><p className="text-gray-600 text-center mb-12 max-w-2xl mx-auto">Our values shape every recommendation, every feature, and every line of code.</p><div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">{[
+  {icon:<I.Target/>,t:'Neutrality',d:'Cross-publisher and unbiased. We do not accept payment from publishers to influence rankings — recommendations are based on fit, not commercial relationships.'},
+  {icon:<I.Award/>,t:'Data-Driven',d:'9,300+ journals enriched with scope descriptions, quartiles, indexing data, and APC information from authoritative public sources.'},
+  {icon:<I.Users/>,t:'Researcher-First',d:'Built by researchers for researchers. Every feature comes from real submission pain — desk rejections, scope mismatches, predatory invites.'},
+  {icon:<I.Heart/>,t:'Actionable Guidance',d:'A ranked list is not enough. We provide tailoring advice, reviewer concerns, and cover-letter tips so you can act on each recommendation.'},
+  {icon:<I.Sparkles/>,t:'Transparency',d:'You see why each journal was recommended — scope fit, methodology match, quartile, and indexing — not a black-box score.'},
+  {icon:<I.Check/>,t:'Privacy by Design',d:'Your manuscripts are processed only to generate recommendations and are never used to train AI models or shared with third parties beyond named processors.'},
+].map((v,i)=><div key={i} className="bg-white p-6 rounded-xl shadow-sm"><div className="w-12 h-12 bg-[#14B8A6] rounded-lg flex items-center justify-center mb-4 text-white"><span className="w-6 h-6">{v.icon}</span></div><h3 className="text-xl font-bold text-[#1E3A8A] mb-3">{v.t}</h3><p className="text-gray-600 text-sm leading-relaxed">{v.d}</p></div>)}</div></div></section>
+<section className="py-20"><div className="max-w-4xl mx-auto px-4 text-center"><h2 className="text-4xl font-bold text-[#1E3A8A] mb-6">Part of ReviewPRO.io</h2><p className="text-gray-600 text-lg leading-relaxed mb-4">PubFit is one of the products developed under <a href="https://reviewpro.io" target="_blank" rel="noopener noreferrer" className="text-[#14B8A6] font-semibold hover:underline">ReviewPRO.io</a>, a research-tools initiative building AI-powered software for scientific publishing workflows.</p><p className="text-gray-600 text-lg leading-relaxed">Within the ReviewPRO portfolio, PubFit focuses on the submission stage of the publishing journey — helping authors choose the right journal and prepare manuscripts for the highest chance of acceptance.</p></div></section>
 <section className="py-20 bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white"><div className="max-w-4xl mx-auto px-4 text-center"><h2 className="text-4xl font-bold mb-6">Join Researchers Worldwide</h2><Link to="/dashboard" className="inline-block px-8 py-4 bg-white text-[#1E3A8A] text-lg font-semibold rounded-lg hover:bg-gray-100">Get Started Free</Link></div></section>
 </div>);}
 
@@ -582,35 +590,35 @@ function MdLite({src}){
 /* PRIVACY POLICY */
 const PRIVACY_TEXT=`# Privacy Policy
 
-**Last updated: [DATE TO FILL IN BEFORE PUBLISHING]**
+**Last updated: May 20, 2026**
 
-This Privacy Policy explains how PubFit ("we", "us", "our") collects, uses, and protects your personal data when you use our website at pubfit.ai (the "Service"). We are committed to protecting your privacy and complying with the EU General Data Protection Regulation (GDPR) and applicable Spanish data protection law (LOPDGDD).
+This Privacy Policy explains how PubFit ("we", "us", and "our") collects, uses, and protects your personal data when you use our website at pubfit.ai (the "Service"). We are committed to protecting your privacy and complying with the EU General Data Protection Regulation ("GDPR") and applicable Spanish data protection law (LOPDGDD).
 
 ## 1. Data Controller
 
 The data controller for personal data processed through the Service is:
 
-**[LEGAL ENTITY NAME — e.g., ReviewPRO.io S.L.]**, [REGISTERED ADDRESS], [CITY], Spain. CIF/NIF: [TAX ID]. Email: ${PRIVACY_EMAIL}.
+**Luca Narduzzi (autónomo)**, [REGISTERED ADDRESS], Granada, Spain. CIF/NIF: [TAX ID]. Email: ${PRIVACY_EMAIL}.
 
 For any questions about this policy or to exercise your rights, contact us at the email above.
 
 ## 2. What Data We Collect
 
-**Account data.** When you create an account, we collect your email address and an encrypted password (or, if you sign in with Google, your Google account email and basic profile information). This is stored by our authentication provider, Firebase Authentication.
+**Account Data.** When you create an account, we collect your email address and an encrypted password. If you sign in with Google, we collect your Google account email address and basic profile information. This information is stored by our authentication provider, Firebase Authentication.
 
-**Profile and credit data.** Your credit balance, expiry date, and purchase history are stored in our Firestore database. If you purchase credit packs, billing details (card information, billing address) are processed and stored by Stripe — we do not store payment card data on our servers.
+**Profile and Credit Data.** Your credit balance, expiration date, and purchase history are stored in our Firestore database. If you purchase credit packs, billing details (including payment card information and billing address) are processed and stored by Stripe. We do not store payment card data on our servers.
 
-**Manuscript content you submit.** When you use the recommendation, tailoring, or report features, you submit text such as abstracts, keywords, references, and other manuscript sections. This content is processed in real time to generate recommendations. We may retain anonymized aggregated query data for service improvement.
+**Manuscript Content.** When you use the recommendation, tailoring, or report-generation features, you may submit manuscript-related text such as abstracts, keywords, references, and other manuscript sections. This content is processed in real time to generate recommendations. We may retain anonymized and aggregated query data to improve the Service.
 
-**Usage data.** We collect information about how you use the Service: search queries, results clicked, features used, and feedback you submit.
+**Usage Data.** We collect information about how you use the Service: search queries, results clicked, features used, and feedback you submit.
 
-**Technical data.** Server logs include your IP address, browser type, operating system, referrer URL, timestamps, and pages visited.
+**Technical Data.** Server logs may include your IP address, browser type, operating system, referrer URL, timestamps, and pages visited.
 
-**Cookies and local storage.** We use cookies and browser local storage to maintain your session, remember your preferences, and enforce free-tier limits before signup.
+**Cookies and Local Storage.** We use cookies and browser local storage to maintain your session and remember your preferences.
 
 ## 3. Legal Basis for Processing
 
-Under GDPR Article 6, we process your personal data on the following legal bases:
+Under Article 6 of the GDPR, we process personal data on the following legal bases:
 
 - **Contract performance** (Art. 6(1)(b)): processing necessary to provide the Service you requested.
 - **Legitimate interests** (Art. 6(1)(f)): operating, securing, and improving the Service.
@@ -619,25 +627,29 @@ Under GDPR Article 6, we process your personal data on the following legal bases
 
 ## 4. How Your Data Is Used
 
-We use your personal data to provide journal recommendations, manuscript tailoring, and report generation; authenticate you and maintain your account; process payments and manage credits; communicate about your account; detect and prevent fraud and abuse; improve the Service through aggregated analytics; and comply with legal obligations.
+We use your personal data to:
+
+- Provide journal recommendations, manuscript tailoring, and report generation;
+- Authenticate users and maintain accounts;
+- Process payments and manage credits;
+- Communicate with you about your account or purchases;
+- Detect, prevent, and investigate fraud or abuse;
+- Improve the Service through aggregated analytics; and
+- Comply with legal obligations.
 
 ## 5. Use of Your Manuscript Content
 
-This section deserves your specific attention because it concerns the most sensitive data you submit.
+Manuscript content you submit (including abstracts, references, keywords, and related text) is transmitted to Google's Gemini API for AI processing. This processing is necessary to generate embeddings, recommendations, and manuscript-tailoring guidance. According to Google's policies for paid Gemini API usage, prompts and responses submitted through the API are not used to train Google's models.
 
-**Manuscript content you enter (abstracts, references, keywords, etc.) is transmitted to Google's Gemini API for AI processing.** This is necessary to generate the embeddings, recommendations, and tailoring advice that the Service produces. Per Google's policies for paid Gemini API usage, your prompts and responses are not used to train Google's models.
-
-**Important consideration for unpublished research.** Submitting unpublished manuscripts or confidential research to any cloud-based AI service involves disclosure to a third-party processor. If your manuscript contains genuinely sensitive intellectual property whose disclosure would harm you, consider submitting only the abstract and high-level metadata rather than full manuscript text.
-
-We do not sell or share your manuscript content with publishers, advertisers, or any third party other than the technical processors listed in Section 7.
+**Important consideration for unpublished research:** Submitting unpublished manuscripts or confidential research to any cloud-based AI service involves disclosure to a third-party processor. If your manuscript contains highly sensitive intellectual property or confidential information, we recommend submitting only the abstract and high-level metadata rather than the full manuscript text.
 
 ## 6. Data Retention
 
-- **Account data**: for as long as your account is active, plus 30 days after deletion.
-- **Manuscript content (search queries)**: up to 90 days in identifiable form.
-- **Billing records**: 6 years, as required by Spanish tax law.
-- **Server logs**: 30 days.
-- **Aggregated and anonymized analytics**: indefinitely.
+- **Account data**: retained while your account remains active and for 30 days after deletion.
+- **Manuscript content (search queries)**: retained for up to 90 days in identifiable form.
+- **Billing records**: retained for 6 years, as required under Spanish tax law.
+- **Server logs**: retained for 30 days.
+- **Aggregated and anonymized analytics**: retained indefinitely.
 
 You can request deletion of your account at any time by emailing ${PRIVACY_EMAIL} or via the account settings page.
 
@@ -655,13 +667,17 @@ Transfers to processors outside the EEA are protected by the EU–US Data Privac
 
 ## 8. Your Rights Under GDPR
 
-You have the right of access, rectification, erasure, restriction, data portability, and objection. You may withdraw consent at any time and lodge a complaint with the Spanish Data Protection Agency (AEPD) at www.aepd.es.
+You have the right to access, rectify, erase, restrict, or object to the processing of your personal data, as well as the right to data portability. You may also withdraw your consent at any time where processing is based on consent.
 
-To exercise any of these rights, email ${PRIVACY_EMAIL}. We will respond within 30 days.
+You have the right to lodge a complaint with the Spanish Data Protection Agency (AEPD) at www.aepd.es.
 
 ## 9. Cookies and Local Storage
 
-We use strictly necessary cookies for authentication and session management (no consent required); browser local storage to count free-tier searches before signup and remember UI preferences; and no third-party advertising or tracking cookies.
+We use:
+
+- Strictly necessary cookies for authentication and session management (which do not require consent under applicable law);
+- Browser local storage to remember user preferences; and
+- No third-party advertising or tracking cookies.
 
 ## 10. Children
 
@@ -673,112 +689,120 @@ We implement reasonable technical and organizational measures to protect your da
 
 ## 12. Changes to This Policy
 
-We may update this policy from time to time. For material changes, we will notify registered users by email at least 14 days before the change takes effect.
+We may update this Privacy Policy from time to time. If we make material changes, we will notify registered users by email at least 14 days before the changes take effect.
 
 ## 13. Contact
 
-Email: ${PRIVACY_EMAIL}. Postal: [LEGAL ENTITY NAME], [ADDRESS], Spain.
+Email: ${PRIVACY_EMAIL}. Postal: Luca Narduzzi (autónomo), [REGISTERED ADDRESS], Granada, Spain.
 
 If you are not satisfied with our response, you may file a complaint with the Agencia Española de Protección de Datos (AEPD) at www.aepd.es.`;
 
 /* TERMS OF SERVICE */
 const TERMS_TEXT=`# Terms of Service
 
-**Last updated: [DATE TO FILL IN BEFORE PUBLISHING]**
+**Last updated: May 20, 2026**
 
-These Terms of Service ("Terms") govern your access to and use of PubFit (the "Service") at pubfit.ai. By creating an account or using the Service, you agree to be bound by these Terms. If you do not agree, do not use the Service.
+These Terms of Service ("Terms") govern your access to and use of PubFit (the "Service") available at pubfit.ai. By creating an account or otherwise using the Service, you agree to be bound by these Terms. If you do not agree, you must not use the Service.
 
 ## 1. Who We Are
 
-The Service is operated by **[LEGAL ENTITY NAME — e.g., ReviewPRO.io S.L.]**, [REGISTERED ADDRESS], [CITY], Spain. CIF/NIF: [TAX ID]. Contact: ${CONTACT_EMAIL}.
+The Service is operated by **Luca Narduzzi (autónomo)**, with registered address at [REGISTERED ADDRESS], Granada, Spain. CIF/NIF: [TAX ID]. Contact: ${CONTACT_EMAIL}.
 
 ## 2. Description of the Service
 
-PubFit is an AI-assisted journal recommendation tool for academic researchers. The Service analyzes manuscript content you submit and returns recommendations of academic journals that may be a suitable fit for publication, along with optional manuscript tailoring advice and downloadable reports.
+PubFit is an AI-assisted journal recommendation tool for academic researchers. The Service analyzes manuscript content you submit and provides recommendations of suitable academic journals for publication, along with optional manuscript tailoring advice and downloadable reports.
 
-**Recommendations are advisory only.** The Service uses statistical and AI methods to estimate fit between your manuscript and journals in our database. Recommendations are not endorsements, do not guarantee acceptance, and do not replace your own judgment. You are solely responsible for your submission decisions.
+**Important:** Recommendations are advisory only. The Service uses statistical and AI methods to estimate the fit between your manuscript and journals in our database. Recommendations are not endorsements, do not guarantee acceptance or publication, and do not replace your own professional judgment. You are solely responsible for all submission decisions.
 
 ## 3. Account Registration
 
-To access most features, you must create an account using a valid email address or a Google account. You agree to provide accurate information, maintain the security of your credentials, notify us promptly of any unauthorized use, and be responsible for all activity under your account. You must be at least 16 years old to create an account.
+To access the Service, you must create an account using a valid email address or your Google account. You agree to provide accurate, complete information and to keep your account credentials secure. You must notify us promptly of any unauthorized access or use of your account and are responsible for all activities that occur under it. You must be at least 16 years old to create an account.
 
-## 4. Free Tier and Credit Packs
+## 4. Free Tier, Credit Packs, and Payments
 
-**Free tier**: One anonymous search is available without signup. After signup, the free tier provides unlimited searches with up to 3 results per search and access to basic features.
+- **Free Tier:** After signing up for a free account, you receive unlimited searches with up to 3 results per search and access to basic features.
 
-**Credit packs**: Premium features (up to 10 results, advanced filters, manuscript tailoring, DOCX reports) require credits. Credits are sold in one-time packs and are valid for **1 year from the date of purchase**. Each search consumes 1 credit when premium features are active.
+- **Credit Packs:** Premium features (including up to 10 results, advanced filters, manuscript tailoring, and DOCX reports) require credits. Credits are sold in one-time packs and are valid for 12 months from the purchase date. Each search that uses premium features consumes 1 credit.
 
-**Payment.** Credit packs are processed through Stripe. We do not store payment card details on our servers.
+**Payment.** Credit packs are processed via Stripe. We do not store your payment card details on our servers.
 
-**Expiration.** Unused credits expire 12 months after purchase. Expired credits are not refundable.
-
-**No automatic renewal.** Credit packs are one-time purchases. There is no recurring subscription unless you explicitly purchase a separate institutional contract.
+**Expiration and Refunds.** Unused credits expire 12 months after purchase and are non-refundable. Credit packs are one-time purchases with no automatic renewal. Recurring subscriptions are available only under separate institutional contracts.
 
 ## 5. Right of Withdrawal (EU Consumers)
 
-If you are a consumer in the EU and you purchase a credit pack, you have the right to withdraw from the contract within 14 days without giving a reason, under Directive 2011/83/EU and Spanish consumer law.
+If you are an EU consumer purchasing a credit pack, you have the right to withdraw from the contract within 14 days without giving any reason, in accordance with Directive 2011/83/EU and applicable Spanish consumer law.
 
-**Important**: by purchasing credits and immediately consuming any of them, you expressly request that we begin providing the Service before the 14-day withdrawal period ends. If you withdraw after consuming credits, you are obligated to pay for the credits used at our standard per-credit rate.
+**Important Notice.** By purchasing credits and using any of them, you expressly request and consent to the immediate provision of the Service before the 14-day withdrawal period expires. If you withdraw after having consumed credits, you will be required to pay for the credits used at our standard per-credit rate.
 
-To exercise the right of withdrawal, email ${CONTACT_EMAIL} with your account email and the words "I wish to withdraw from the contract."
+To exercise this right, email ${CONTACT_EMAIL} from the registered account email with the subject or clear statement: "I wish to withdraw from the contract."
 
-This right does not apply to business users or institutional contracts.
+This right does not apply to business or institutional purchases.
 
 ## 6. Acceptable Use
 
-You agree not to use the Service to violate any law or third-party right; submit content that is illegal, defamatory, or infringing; use automated tools to scrape or mass-extract data; attempt unauthorized access to other accounts or our systems; reverse engineer the Service; develop a competing product; or submit content that violates academic integrity.
+You agree not to:
 
-We reserve the right to suspend or terminate accounts that violate these rules.
+- Violate any applicable law or third-party rights;
+- Submit content that is illegal, defamatory, infringing, or harmful;
+- Use automated tools, scripts, or bots to scrape, crawl, or mass-extract data from the Service;
+- Attempt unauthorized access to any accounts, systems, or networks;
+- Reverse engineer, decompile, or otherwise attempt to extract the source code or underlying algorithms of the Service;
+- Develop a competing product or service using our data, technology, or methods;
+- Submit content that violates academic integrity standards (e.g., fabricated data or plagiarism).
+
+We reserve the right to suspend or terminate accounts that violate these rules, with or without notice.
 
 ## 7. Your Content
 
-You retain all ownership of the manuscript content, abstracts, and other text you submit ("Your Content"). You grant us a limited, non-exclusive license to process Your Content solely for the purpose of providing the Service to you, including transmitting it to AI processing providers as described in our Privacy Policy.
+You retain all ownership rights in the manuscripts, abstracts, and other text you submit ("Your Content"). By submitting Your Content, you grant us a limited, worldwide, non-exclusive, royalty-free license to process, reproduce, and transmit it solely as necessary to provide the Service to you (including sending it to our AI processing providers, as described in our Privacy Policy).
 
-We do not claim ownership of Your Content. We do not sell, license, or share Your Content with publishers, advertisers, or any party other than the technical processors disclosed in our Privacy Policy.
+We do not claim ownership of Your Content. We do not sell, license, or share Your Content with publishers, advertisers, or any unrelated third parties, except for the technical processors outlined in our Privacy Policy.
 
 ## 8. Our Intellectual Property
 
-The Service, including its software, design, journal database, recommendation algorithms, and all related materials, is owned by us or our licensors. We grant you a limited, non-transferable, revocable license to use the Service in accordance with these Terms.
+The Service, including its software, design, journal database, recommendation algorithms, user interface, and all related materials, is owned by us or our licensors. We grant you a limited, non-exclusive, non-transferable, revocable license to use the Service solely for your personal or institutional research purposes in accordance with these Terms.
 
 ## 9. AI-Generated Content and Limitations
 
-The Service uses third-party AI models (currently Google Gemini) to generate recommendations and advisory content. AI-generated content may be inaccurate, incomplete, biased, or out of date. Journal recommendations are based on similarity scoring and AI re-ranking, which can produce mismatches. Tailoring advice reflects general patterns and may not align with a specific journal's current editorial preferences. The journal database is updated periodically but may not include all journals.
+The Service uses third-party AI models (currently Google Gemini) to generate recommendations and advisory content. AI output may be inaccurate, incomplete, biased, or outdated. Journal recommendations are based on similarity scoring and AI re-ranking and may not always reflect the best or most current fit. Tailoring advice is general in nature and may not match a journal's specific or changing editorial preferences. Our journal database is updated periodically but may not include every journal.
 
-**You should treat all output as a starting point for your own research, not as authoritative guidance.** We are not liable for editorial decisions made by journals you submit to.
+**You should treat all Service output as a helpful starting point only and conduct your own due diligence.** We are not responsible for any editorial, peer-review, or publication decisions made by journals.
 
 ## 10. Service Availability
 
-We aim for high availability but do not guarantee uninterrupted Service. The Service is provided on an "as is" and "as available" basis. We may add, modify, or remove features at any time.
+We strive to maintain high availability but do not guarantee uninterrupted access. The Service is provided on an "as is" and "as available" basis. We may modify, add, or remove features at any time without prior notice.
 
 ## 11. Disclaimers
 
-To the maximum extent permitted by law, the Service is provided without warranties of any kind, express or implied. We do not warrant that the Service will meet your requirements, be error-free, or produce specific outcomes (such as journal acceptance). We are not responsible for editorial, peer review, or publication decisions of any journal.
+To the maximum extent permitted by law, the Service is provided without any warranties, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, or non-infringement. We do not warrant that the Service will meet your specific requirements, be error-free, or produce particular outcomes (including journal acceptance).
 
 ## 12. Limitation of Liability
 
-To the maximum extent permitted by law, our total aggregate liability arising out of or related to the Service is limited to the amount you paid us in the 12 months before the event, or €100, whichever is greater. We are not liable for indirect, incidental, special, consequential, or punitive damages, even if advised of the possibility. These limitations do not apply to liability for fraud, gross negligence, willful misconduct, or matters that cannot be limited under applicable law.
+To the maximum extent permitted by law, our total aggregate liability arising out of or in connection with these Terms or the Service shall not exceed the greater of (i) the total amount you paid us in the 12 months preceding the claim, or (ii) €100. We shall not be liable for any indirect, incidental, special, consequential, or punitive damages, even if advised of their possibility.
+
+These limitations do not apply to liability that cannot be limited under applicable law, including liability for fraud, gross negligence, or willful misconduct.
 
 ## 13. Indemnification
 
-You agree to indemnify and hold us harmless from any claims, damages, or costs arising from your violation of these Terms, your misuse of the Service, or your infringement of any third-party right.
+You agree to indemnify, defend, and hold us and our affiliates, officers, directors, employees, and agents harmless from and against any claims, damages, losses, liabilities, costs, and expenses (including reasonable legal fees) arising out of or related to your violation of these Terms, your misuse of the Service, or your infringement of any third-party rights.
 
 ## 14. Termination
 
-You may close your account at any time through your account settings or by emailing us. We may suspend or terminate your account if you violate these Terms, if required by law, or if we discontinue the Service.
+You may terminate your account at any time via your account settings or by emailing ${CONTACT_EMAIL}. We may suspend or terminate your access to the Service at any time for violation of these Terms, legal requirements, or if we discontinue the Service. Upon termination, your right to use the Service ceases immediately, and any unused credits will expire.
 
 ## 15. Changes to These Terms
 
-We may update these Terms from time to time. For material changes, we will notify registered users by email at least 14 days before the change takes effect. Continued use of the Service after a change indicates your acceptance.
+We may update these Terms from time to time. For material changes, we will notify registered users by email at least 14 days in advance. Your continued use of the Service after the changes take effect constitutes your acceptance of the revised Terms.
 
 ## 16. Governing Law and Disputes
 
-These Terms are governed by the laws of Spain. Any dispute will be subject to the exclusive jurisdiction of the courts of [CITY — e.g., Granada], Spain, except that consumers may bring claims in the courts of their place of residence as required by EU consumer law.
+These Terms are governed by the laws of Spain. Any disputes shall be subject to the exclusive jurisdiction of the courts of Granada, Spain. EU consumers retain the right to bring claims in their country of residence as provided by mandatory EU consumer law.
 
-EU consumers may also use the European Commission's Online Dispute Resolution platform at https://ec.europa.eu/consumers/odr/.
+EU consumers may also use the European Commission's Online Dispute Resolution platform: https://ec.europa.eu/consumers/odr/.
 
 ## 17. Contact
 
-Email: ${CONTACT_EMAIL}. Postal: [LEGAL ENTITY NAME], [ADDRESS], Spain.`;
+Email: ${CONTACT_EMAIL}. Postal: Luca Narduzzi (autónomo), [REGISTERED ADDRESS], Granada, Spain.`;
 
 function PrivacyPage(){return(<div className="bg-white"><div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><MdLite src={PRIVACY_TEXT}/></div></div>);}
 function TermsPage(){return(<div className="bg-white"><div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><MdLite src={TERMS_TEXT}/></div></div>);}
