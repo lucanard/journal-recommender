@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Local backups
+*.backup
+*.bak
+*.OLD.*
+
+# Benchmark and diagnostic outputs (not for production)
+bench_cache/
+benchmark_data/
+benchmark_results/
+diag_dumps/
+deployment_probe_response.json
+bench_refs_results.csv
+bench_refs_results.OLD.csv
+manual_comparison_template.csv
+
+# IDE
+.vscode/
+.idea/
