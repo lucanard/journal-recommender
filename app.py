@@ -5,6 +5,7 @@ Usage: python app.py --data-dir data --llm gemini --llm-key YOUR_KEY
 """
 
 import os, sys, json, logging, argparse, re
+import time as _time, threading as _threading, collections as _collections
 from pathlib import Path
 
 try:
@@ -114,6 +115,199 @@ def _get_firestore_client():
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("journal-api")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Authentication, credits and rate limiting
+# ═══════════════════════════════════════════════════════════════════════════════
+# The frontend used to be the only thing standing between an anonymous caller and
+# the paid endpoints: it decided who was signed in, how many results to request,
+# and it deducted the credit itself by writing to Firestore. Anyone with a
+# terminal could skip all three. Everything below moves those decisions to the
+# server, which is the only place they can be trusted.
+
+# Set AUTH_ENFORCED=false ONLY for local development. With it off, every paid
+# endpoint is open to anonymous callers.
+AUTH_ENFORCED = os.environ.get("AUTH_ENFORCED", "true").strip().lower() not in ("false", "0", "no", "off")
+
+FREE_TIER_RESULTS = 3       # results an account with no credits gets
+PREMIUM_TIER_RESULTS = 10   # results one credit buys
+
+RATE_LIMIT_PER_MINUTE = int(os.environ.get("RATE_LIMIT_PER_MINUTE", "20") or 0)
+
+
+def _verify_bearer_token(raw_request) -> Optional[str]:
+    """Return the Firebase uid behind a request's bearer token, or None.
+
+    None means 'not authenticated' for any reason: missing header, malformed or
+    expired token, or Firebase Admin not configured. It never raises — callers
+    decide whether anonymous is acceptable.
+    """
+    header = raw_request.headers.get("authorization") or ""
+    if not header.lower().startswith("bearer "):
+        return None
+    token = header[7:].strip()
+    if not token:
+        return None
+    if not FIREBASE_ADMIN_AVAILABLE or _get_firestore_client() is None:
+        # We cannot verify anything, so we trust nothing.
+        log.error("ID token received but Firebase Admin is not configured — cannot verify.")
+        return None
+    try:
+        from firebase_admin import auth as fb_auth
+        return fb_auth.verify_id_token(token).get("uid")
+    except Exception as e:
+        log.warning(f"ID token rejected: {e}")
+        return None
+
+
+def _require_uid(raw_request) -> Optional[str]:
+    """Authenticate a request, raising 401 when enforcement is on."""
+    uid = _verify_bearer_token(raw_request)
+    if uid:
+        return uid
+    if AUTH_ENFORCED:
+        raise HTTPException(status_code=401, detail="Sign in to use this feature.")
+    return None
+
+
+def _credits_expired(expires_at) -> bool:
+    """True when a credit balance has passed its expiry date, or is unreadable."""
+    if not expires_at:
+        return True
+    from datetime import datetime, timezone
+    try:
+        if hasattr(expires_at, "timestamp"):  # native Firestore timestamp
+            return expires_at.timestamp() < datetime.now(timezone.utc).timestamp()
+        parsed = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed < datetime.now(timezone.utc)
+    except Exception:
+        return True
+
+
+LEGACY_PREMIUM_CREDITS = 60  # what a pre-credits "premium" account is worth
+
+
+def _effective_credits(data: dict) -> int:
+    """Usable balance for a user document, expiry and legacy accounts included.
+
+    Accounts created before the credit system have no `credits` field at all;
+    the ones that were on the old premium plan are worth a one-off grant. That
+    rule used to run in the browser, keyed off a `plan` field the browser could
+    also write — so an account could award itself 60 credits. It lives here now,
+    and `plan` is locked down in firestore.rules.
+    """
+    if "credits" not in data:
+        return LEGACY_PREMIUM_CREDITS if data.get("plan") == "premium" else 0
+    if _credits_expired(data.get("credits_expire_at")):
+        return 0
+    return max(0, int(data.get("credits") or 0))
+
+
+def _read_credits(uid: Optional[str]) -> int:
+    """Usable credit balance for a user. Returns 0 on any doubt."""
+    db = _get_firestore_client()
+    if db is None or not uid:
+        return 0
+    try:
+        snap = db.collection("users").document(uid).get()
+        if not snap.exists:
+            return 0
+        return _effective_credits(snap.to_dict() or {})
+    except Exception as e:
+        log.error(f"Credit lookup failed for {uid}: {e}")
+        return 0
+
+
+def _spend_search_credit(uid: Optional[str]) -> bool:
+    """Atomically spend one credit and count the search.
+
+    Returns True when a credit was actually spent (premium search) and False
+    when the user had none (free search). Read and write happen inside a single
+    Firestore transaction, so two searches fired at the same instant cannot
+    spend the same credit twice.
+    """
+    db = _get_firestore_client()
+    if db is None or not uid:
+        return False
+    ref = db.collection("users").document(uid)
+
+    @fb_firestore.transactional
+    def _txn(transaction):
+        snap = ref.get(transaction=transaction)
+        data = (snap.to_dict() or {}) if snap.exists else {}
+        credits = _effective_credits(data)
+        updates = {"total_searches": fb_firestore.Increment(1)}
+        if credits <= 0:
+            transaction.set(ref, updates, merge=True)
+            return False
+        if "credits" not in data:
+            # First charge on a legacy account: materialize the balance instead
+            # of decrementing a field that does not exist yet.
+            from datetime import datetime, timedelta, timezone
+            updates["credits"] = credits - 1
+            updates["credits_expire_at"] = (
+                datetime.now(timezone.utc) + timedelta(days=365)
+            ).isoformat()
+        else:
+            updates["credits"] = fb_firestore.Increment(-1)
+        transaction.set(ref, updates, merge=True)
+        return True
+
+    try:
+        return _txn(db.transaction())
+    except Exception as e:
+        # Never fail a search because bookkeeping broke — but never hand out a
+        # premium search we could not charge for either.
+        log.error(f"Credit transaction failed for {uid}: {e}")
+        return False
+
+
+def _refund_search_credit(uid: Optional[str]) -> None:
+    """Give a spent credit back when the search it paid for failed."""
+    db = _get_firestore_client()
+    if db is None or not uid:
+        return
+    try:
+        db.collection("users").document(uid).set(
+            {"credits": fb_firestore.Increment(1)}, merge=True
+        )
+        log.info(f"Refunded 1 credit to {uid} after a failed search.")
+    except Exception as e:
+        log.error(f"Credit refund failed for {uid}: {e}")
+
+
+# In-memory sliding window. Enough to stop a script hammering the LLM endpoints;
+# a multi-instance deployment would want a shared store instead.
+_rate_hits = _collections.defaultdict(_collections.deque)
+_rate_lock = _threading.Lock()
+
+
+def _rate_limit(raw_request, uid: Optional[str], endpoint: str) -> None:
+    """Raise 429 when a caller exceeds the per-minute budget for a paid endpoint."""
+    if RATE_LIMIT_PER_MINUTE <= 0:
+        return
+    key = uid or (raw_request.client.host if raw_request.client else "unknown")
+    now = _time.time()
+    with _rate_lock:
+        hits = _rate_hits[key]
+        while hits and now - hits[0] > 60:
+            hits.popleft()
+        if len(hits) >= RATE_LIMIT_PER_MINUTE:
+            retry_after = int(60 - (now - hits[0])) + 1
+            log.warning(f"Rate limit hit by {key} on {endpoint}")
+            raise HTTPException(
+                status_code=429,
+                detail="Too many requests. Please wait a moment and try again.",
+                headers={"Retry-After": str(retry_after)},
+            )
+        hits.append(now)
+        # Keep the table from growing without bound on a long-running process.
+        if len(_rate_hits) > 10000:
+            for stale in [k for k, v in _rate_hits.items() if not v or now - v[-1] > 300]:
+                del _rate_hits[stale]
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", "."))
 EMBEDDINGS_FILE = DATA_DIR / "journal_embeddings.npz"
@@ -384,6 +578,12 @@ class RecommendResponse(BaseModel):
     # Tells the UI which path produced these results — see recommender.py
     # for the full list of values.
     rerank_mode: str = "llm"
+    # Which tier actually served this request and what is left in the account.
+    # Both are decided server-side from the verified caller's balance; the
+    # response_model filters out anything not declared here, so they have to be
+    # listed or the UI never sees them.
+    tier: str = "free"
+    credits_remaining: int = 0
 
 
 class HealthResponse(BaseModel):
@@ -432,7 +632,17 @@ app = FastAPI(
     version="1.1.0",
 )
 
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# CORS is restricted to the domains that actually serve the app. The frontend is
+# served from the same origin as the API, so normal traffic never consults this;
+# it only governs who may call the API from someone else's site.
+_origins_env = os.environ.get("ALLOWED_ORIGINS", "").strip()
+if _origins_env:
+    ALLOWED_ORIGINS = [o.strip() for o in _origins_env.split(",") if o.strip()]
+else:
+    _public_origin = os.environ.get("PUBLIC_BASE_URL", "https://pubfit.ai").rstrip("/")
+    ALLOWED_ORIGINS = [_public_origin, "http://localhost:8000", "http://127.0.0.1:8000"]
+
+app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 store = VectorStore()
 embedder = None
@@ -541,6 +751,11 @@ def health_check():
 )
 async def recommend(raw_request: Request):
     """Get journal recommendations for your manuscript."""
+    # Authenticate before doing any work: an anonymous caller should be turned
+    # away by the door, not by whatever happens to fail first behind it.
+    uid = _require_uid(raw_request)
+    _rate_limit(raw_request, uid, "/recommend")
+
     if not engine:
         raise HTTPException(status_code=503, detail="Engine not initialized")
 
@@ -565,6 +780,23 @@ async def recommend(raw_request: Request):
             status_code=422,
             detail="The abstract doesn't appear to contain meaningful scientific text. Please paste a real research abstract."
         )
+
+    # ─── What has this caller paid for? ───
+    # The result count and the premium filters are settled here, not by the
+    # client: a browser can put anything it likes in the request body. The
+    # credit is spent only now that the request is known to be well-formed, so
+    # a malformed abstract never costs the user anything.
+    premium = _spend_search_credit(uid) if uid else False
+    if premium:
+        request.num_results = min(request.num_results, PREMIUM_TIER_RESULTS)
+    else:
+        request.num_results = min(request.num_results, FREE_TIER_RESULTS)
+        request.indexing_required = []
+        request.oa_preference = "Any"
+        request.apc_free_only = False
+        request.max_apc = None
+        request.min_impact_factor = None
+        request.target_impact = None
 
     # Clean placeholders
     PH = {"string", ""}
@@ -624,7 +856,12 @@ async def recommend(raw_request: Request):
             "language": detected_lang,
             "num_results": request.num_results,
         }
+        result["tier"] = "premium" if premium else "free"
+        result["credits_remaining"] = _read_credits(uid)
     except Exception as e:
+        # The credit was taken before the search ran; give it back on failure.
+        if premium:
+            _refund_search_credit(uid)
         log.error(f"Recommendation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")
     return result
@@ -644,8 +881,12 @@ class ReportRequest(BaseModel):
 
 
 @app.post("/report")
-def generate_report_endpoint(request: ReportRequest):
+def generate_report_endpoint(request: ReportRequest, raw_request: Request):
     """Generate a downloadable Word document summarizing the results."""
+    uid = _require_uid(raw_request)
+    _rate_limit(raw_request, uid, "/report")
+    if uid and _read_credits(uid) <= 0:
+        raise HTTPException(status_code=402, detail="Downloading the report requires credits.")
     if not DOCX_AVAILABLE:
         raise HTTPException(status_code=501, detail="Report generation requires python-docx. Install with: pip install python-docx")
     try:
@@ -683,6 +924,10 @@ class TailorRequest(BaseModel):
 @app.post("/tailor")
 async def tailor_manuscript(raw_request: Request):
     """Get AI suggestions on how to tailor a manuscript for a specific journal."""
+    uid = _require_uid(raw_request)
+    _rate_limit(raw_request, uid, "/tailor")
+    if uid and _read_credits(uid) <= 0:
+        raise HTTPException(status_code=402, detail="Manuscript tailoring requires credits.")
     if not engine or not engine.llm:
         raise HTTPException(status_code=503, detail="LLM not available. Tailoring requires an LLM provider.")
 
@@ -1108,8 +1353,14 @@ class CheckoutRequest(BaseModel):
 
 
 @app.post("/create-checkout-session")
-def create_checkout_session(request: CheckoutRequest):
+def create_checkout_session(request: CheckoutRequest, raw_request: Request):
     """Create a Stripe Checkout Session for a credit pack purchase."""
+    # The uid the webhook will credit comes from the verified token where one is
+    # present, so a caller cannot start a checkout that tops up someone else's
+    # balance by putting their uid in the body.
+    authenticated_uid = _require_uid(raw_request)
+    if authenticated_uid:
+        request.uid = authenticated_uid
     if not STRIPE_AVAILABLE:
         raise HTTPException(status_code=503, detail="Payments not configured: stripe library missing.")
     stripe_key = os.environ.get("STRIPE_SECRET_KEY")
@@ -1134,8 +1385,13 @@ def create_checkout_session(request: CheckoutRequest):
             # Pack ID stored in metadata so webhook knows how many credits to grant
             # (rather than re-looking-up from price_id, which is brittle if prices change).
             metadata={"pack_id": request.pack_id, "uid": request.uid},
-            success_url=f"{base_url}/dashboard?purchase=success&session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{base_url}/pricing?purchase=cancelled",
+            # The frontend is a hash-routed single page: the query string has to
+            # come BEFORE the hash, because that is where window.location.search
+            # reads from, and the path has to stay "/" because that is the only
+            # path the server serves. The previous /dashboard and /pricing paths
+            # returned 404 to every paying customer.
+            success_url=f"{base_url}/?purchase=success&session_id={{CHECKOUT_SESSION_ID}}#/dashboard",
+            cancel_url=f"{base_url}/?purchase=cancelled#/pricing",
             # Auto-collect billing address (required for EU VAT compliance via Stripe Tax,
             # which we'll enable later — for now it's just collected).
             billing_address_collection="required",
@@ -1284,6 +1540,9 @@ def stripe_debug():
         "firebase_client_ready": _get_firestore_client() is not None,
         "packs_configured": list(PACKS.keys()),
         "public_base_url": os.environ.get("PUBLIC_BASE_URL", "https://pubfit.ai"),
+        "auth_enforced": AUTH_ENFORCED,
+        "allowed_origins": ALLOWED_ORIGINS,
+        "rate_limit_per_minute": RATE_LIMIT_PER_MINUTE,
     }
 
 

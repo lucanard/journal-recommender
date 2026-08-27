@@ -86,6 +86,19 @@ const AuthCtx=createContext({user:null,credits:0,creditsExpireAt:null,totalSearc
 
 function isExpired(iso){if(!iso)return true;return new Date(iso).getTime()<Date.now();}
 
+/* Every call to a paid endpoint carries the signed-in user's Firebase ID token.
+ * The server verifies it and decides the tier from it — the browser no longer
+ * gets a say in how many results come back or whether a credit is spent.
+ * getIdToken() refreshes the token automatically when it is close to expiring. */
+async function authHeaders(){
+  const h={'Content-Type':'application/json'};
+  try{
+    const u=fbAuth.currentUser;
+    if(u)h['Authorization']='Bearer '+(await u.getIdToken());
+  }catch(e){console.error('Could not attach auth token:',e);}
+  return h;
+}
+
 // Client-side download of the tailor result as a Markdown file.
 // Pure browser-side — no backend call, no risk to other endpoints.
 // .md opens in any text editor and in Word directly.
@@ -147,13 +160,13 @@ function AuthProvider({children}){
         return;
       }
       const d=doc.data();
-      // Migration: doc exists but lacks `credits` field (pre-credits-system account)
+      // Pre-credits accounts have no `credits` field. We show what they are
+      // worth, but we no longer write the balance from here: the browser must
+      // not be able to mint credits, so the backend materializes it on first
+      // use instead (see _effective_credits in app.py).
       if(typeof d.credits==='undefined'){
         const legacyCredits=d.plan==='premium'?60:0;
-        const expiry=legacyCredits>0?new Date(Date.now()+365*24*3600*1000).toISOString():null;
-        const migrated={credits:legacyCredits,credits_expire_at:expiry,total_searches:d.searches||0,purchases:d.purchases||[]};
-        await ref.set(migrated,{merge:true});
-        setCredits(legacyCredits);setCreditsExpireAt(expiry);setTotalSearches(d.searches||0);
+        setCredits(legacyCredits);setCreditsExpireAt(null);setTotalSearches(d.searches||0);
         return;
       }
       // Normal path: doc already has credits field
@@ -337,8 +350,10 @@ function DashboardPage(){
         if(attempts<5)setTimeout(tick,1500);
       };
       tick();
-      // Clean the URL so a refresh doesn't re-trigger the banner
-      window.history.replaceState({},'',window.location.pathname);
+      // Clean the query so a refresh doesn't re-trigger the banner — but keep
+      // the hash, which is what the router uses. Dropping it here would bounce
+      // the customer from the dashboard straight back to the home page.
+      window.history.replaceState({},'',window.location.pathname+window.location.hash);
       // Auto-hide banner after 15s
       setTimeout(()=>setPurchaseOK(false),15000);
     }
@@ -354,27 +369,24 @@ function DashboardPage(){
     try{
       const en=hasCredits?10:3;
       const body={abstract:abs,keywords:kw,introduction_conclusion:ic,methods:mt,results_summary:rs,references:REFERENCES_FEATURE_ENABLED?refs:'',article_type:at,discipline:disc,indexing_required:hasCredits?idx:[],oa_preference:hasCredits?oa:'Any',apc_free_only:hasCredits?apcF:false,max_apc:hasCredits&&maxA?parseFloat(maxA):null,min_impact_factor:hasCredits&&minI?parseFloat(minI):null,target_impact:hasCredits&&ti?ti:null,num_results:en,language_preference:'auto'};
-      const r=await fetch(API+'/recommend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const r=await fetch(API+'/recommend',{method:'POST',headers:await authHeaders(),body:JSON.stringify(body)});
+      if(r.status===401){setAuthMsg('Your session expired. Please sign in again.');setShowAuth(true);throw new Error('Session expired.');}
       if(!r.ok){const d=await r.json().catch(()=>({detail:r.statusText}));throw new Error(d.detail||'Failed');}
       const data=await r.json();setRes(data);
-      // Bookkeeping after successful search (user is always logged in here — anonymous searches are gated above)
-      try{
-        const updates={total_searches:firebase.firestore.FieldValue.increment(1)};
-        if(hasCredits){updates.credits=firebase.firestore.FieldValue.increment(-1);}
-        await fbDb.collection('users').doc(user.uid).set(updates,{merge:true});
-        refreshUserDoc();
-      }catch(x){console.error('Search bookkeeping:',x);}
+      // The server spent the credit inside the same transaction that ran the
+      // search, so all we do here is pull the new balance down for display.
+      refreshUserDoc();
       setTimeout(()=>rRef.current?.scrollIntoView({behavior:'smooth'}),100);
     }catch(x){setErr(x.message);}finally{setBusy(false);}
   }
   async function doTailor(rec){
     if(!hasCredits){needCredits('Manuscript Tailoring');return;}
     setTj(rec);setTd(null);setTl(true);
-    try{const body={abstract:abs,keywords:kw,introduction_conclusion:ic,methods:mt,results_summary:rs,article_type:at,journal_id:rec.journal_id,journal_name:rec.journal_name};const r=await fetch(API+'/tailor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok){const d=await r.json().catch(()=>({detail:'Failed'}));throw new Error(d.detail);}setTd(await r.json());}catch(x){setTd({error:x.message});}finally{setTl(false);}
+    try{const body={abstract:abs,keywords:kw,introduction_conclusion:ic,methods:mt,results_summary:rs,article_type:at,journal_id:rec.journal_id,journal_name:rec.journal_name};const r=await fetch(API+'/tailor',{method:'POST',headers:await authHeaders(),body:JSON.stringify(body)});if(!r.ok){const d=await r.json().catch(()=>({detail:'Failed'}));throw new Error(d.detail);}setTd(await r.json());}catch(x){setTd({error:x.message});}finally{setTl(false);}
   }
   async function doReport(){
     if(!hasCredits){needCredits('Download Report');return;}
-    if(!res)return;try{const r=await fetch(API+'/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({results:res,abstract:abs,constraints:{article_type:at,discipline:disc}})});if(!r.ok)throw new Error('Failed');const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='journal_recommendations.docx';a.click();URL.revokeObjectURL(u);}catch(x){alert(x.message);}
+    if(!res)return;try{const r=await fetch(API+'/report',{method:'POST',headers:await authHeaders(),body:JSON.stringify({results:res,abstract:abs,constraints:{article_type:at,discipline:disc}})});if(!r.ok){const d=await r.json().catch(()=>({detail:'Report generation failed.'}));throw new Error(d.detail||'Report generation failed.');}const b=await r.blob();const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='journal_recommendations.docx';a.click();URL.revokeObjectURL(u);}catch(x){alert(x.message);}
   }
   const fc=(f)=>{const v=(f||'').toLowerCase();if(v.includes('high')||v.includes('excellent'))return'bg-emerald-100 text-emerald-800';if(v.includes('medium')||v.includes('good'))return'bg-amber-100 text-amber-800';return'bg-red-100 text-red-800';};
   return(<div className="bg-gray-50 min-h-screen py-12"><div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -494,7 +506,11 @@ function PricingPage(){
     if(!user){setAuthMsg('Sign in to buy a credit pack — your purchase will be linked to your account.');setShowAuth(true);return;}
     setBuyErr('');setBuying(pack_id);
     try{
-      const r=await fetch(API+'/create-checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pack_id,uid:user.uid,email:user.email})});
+      const r=await fetch(API+'/create-checkout-session',{method:'POST',headers:await authHeaders(),body:JSON.stringify({pack_id,uid:user.uid,email:user.email})});
+      if(r.status===401){setAuthMsg('Your session expired. Please sign in again to complete your purchase.');setShowAuth(true);throw new Error('Session expired.');}
+      // A 503 here means the payment stack is not configured on the server.
+      // Show the user something actionable instead of the internal reason.
+      if(r.status===503)throw new Error('Payments are temporarily unavailable. Please try again shortly or contact us at '+CONTACT_EMAIL+'.');
       if(!r.ok){const d=await r.json().catch(()=>({detail:r.statusText}));throw new Error(d.detail||'Failed to start checkout');}
       const data=await r.json();
       if(!data.url)throw new Error('No checkout URL returned');

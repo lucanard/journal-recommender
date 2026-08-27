@@ -16,4 +16,42 @@ services:
         value: gemini
       - key: EMBEDDING_PROVIDER
         value: gemini
+
+      # ─── Payments ─────────────────────────────────────────
+      # Both are set in the Render dashboard, never committed.
+      # STRIPE_SECRET_KEY      → Stripe > Developers > API keys (sk_live_…)
+      # STRIPE_WEBHOOK_SECRET  → signing secret of the /stripe-webhook endpoint (whsec_…)
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+      # ─── Public URL ───────────────────────────────────────
+      # Where Stripe sends the customer back after checkout, and the
+      # default CORS origin. Must match the domain actually serving the app.
+      - key: PUBLIC_BASE_URL
+        value: https://pubfit.ai
+
+      # ─── Access control ───────────────────────────────────
+      # AUTH_ENFORCED requires a verified Firebase ID token on the paid
+      # endpoints. Turning it off opens them to anonymous callers — local
+      # development only. It needs the Firebase Admin credentials below.
+      - key: AUTH_ENFORCED
+        value: "true"
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "20"
+      # Comma-separated. Leave unset to derive it from PUBLIC_BASE_URL.
+      # - key: ALLOWED_ORIGINS
+      #   value: https://pubfit.ai,https://www.pubfit.ai
+
+# ─── Firebase Admin credentials ───────────────────────────────
+# Required for credit accounting AND for token verification, so the service
+# will refuse the paid endpoints without it. Upload the service-account JSON
+# in the Render dashboard as a Secret File at this exact path — it is the
+# first location app.py looks in:
+#
+#   /etc/secrets/firebase-admin.json
+#
+# Generate it at: Firebase console > Project settings > Service accounts >
+# Generate new private key. Never commit this file.
     autoDeploy: true           # Redeploy on git push
