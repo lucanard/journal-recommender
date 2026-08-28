@@ -1338,11 +1338,13 @@ def get_disciplines():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # Map our internal pack_id -> Stripe price_id + credit amount.
-# When you create the LIVE-mode products later, you'll change these price IDs.
+# These are the LIVE-mode prices on account acct_1TLgwUOm3TPXZzVB. A test-mode
+# price ID is rejected by a live key and vice versa, so if you ever switch the
+# key you have to switch these too.
 PACKS = {
-    "starter":  {"price_id": "price_1TWaIq0m3TPXZzVBKPgyq44G", "credits": 5,  "name": "Starter Pack"},
-    "standard": {"price_id": "price_1TWaJs0m3TPXZzVBKCEoGtUN", "credits": 20, "name": "Standard Pack"},
-    "power":    {"price_id": "price_1TWaKI0m3TPXZzVBQDNQC8E1", "credits": 60, "name": "Power Pack"},
+    "starter":  {"price_id": "price_1U9Qkz0m3TPXZzVBx9hbAJ6Q", "credits": 5,  "name": "Starter Pack"},   # €15
+    "standard": {"price_id": "price_1U9QlU0m3TPXZzVBnWHpuAtb", "credits": 20, "name": "Standard Pack"},  # €40
+    "power":    {"price_id": "price_1U9QmJ0m3TPXZzVByOB07eJt", "credits": 60, "name": "Power Pack"},     # €90
 }
 
 

@@ -208,6 +208,31 @@ def test_checkout(app_module, client):
         stripe.checkout.Session.create = original
 
 
+def test_packs_match_the_pricing_page(app_module):
+    """The credit amounts the backend grants must match what the page sells.
+
+    The pricing page and PACKS are edited in different files, so a change to one
+    can silently leave the other behind — and the mismatch would only show up
+    after somebody paid.
+    """
+    expected = {"starter": 5, "standard": 20, "power": 60}
+    for pack_id, credits in expected.items():
+        pack = app_module.PACKS.get(pack_id)
+        check(f"packs: {pack_id} exists", pack is not None)
+        if pack:
+            check(f"packs: {pack_id} grants {credits} credits",
+                  pack["credits"] == credits, pack["credits"])
+            check(f"packs: {pack_id} has a price id",
+                  str(pack["price_id"]).startswith("price_"), pack["price_id"])
+
+    page = open(os.path.join(HERE, "index.html"), encoding="utf-8").read()
+    for pack_id, credits in expected.items():
+        check(f"packs: pricing page still offers {pack_id}",
+              f"pack_id:'{pack_id}'" in page)
+        check(f"packs: pricing page advertises {credits} credits for {pack_id}",
+              f"'{credits} credits'" in page)
+
+
 def main():
     try:
         import app as app_module
@@ -226,6 +251,7 @@ def main():
     test_credit_arithmetic(app_module)
     test_rate_limit(app_module, client)
     test_checkout(app_module, client)
+    test_packs_match_the_pricing_page(app_module)
 
     print()
     if FAILURES:
