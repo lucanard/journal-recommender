@@ -13,3 +13,9 @@ openpyxl>=3.1.0
 # NOTE: sentence-transformers is NOT included.
 # Use API-based embeddings (OpenAI, Cohere, or Voyage) instead.
 # This keeps RAM under 200MB for free-tier cloud hosting.
+
+# ─── Payments (Stripe checkout + Firebase credit ledger) ──────
+# Without these two the payment endpoints return 503 at runtime:
+# the imports in app.py fail and STRIPE_AVAILABLE stays False.
+stripe>=8.0.0
+firebase-admin>=6.5.0

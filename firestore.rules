@@ -1,0 +1,46 @@
+rules_version = '2';
+
+// Firestore security rules for PubFit.
+//
+// These rules were previously configured only in the Firebase console, which
+// meant nobody could review them alongside the code. The important property
+// they enforce: a user may read their own profile and update their own
+// harmless fields, but the balance itself is off limits from the browser.
+// `credits`, `credits_expire_at` and `purchases` are written exclusively by
+// the backend through the Firebase Admin SDK — the Stripe webhook when a pack
+// is bought, and the search endpoint when a credit is spent. The Admin SDK
+// bypasses these rules entirely, so restricting the client costs it nothing.
+// `plan` is locked down too: the backend grants legacy premium accounts their
+// one-off balance from it, so a client that could write it could mint credits.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+
+      // Creating your own profile is fine, as long as it starts empty-handed.
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.get('credits', 0) == 0
+                    && request.resource.data.get('purchases', []).size() == 0;
+
+      // Updates may only touch fields the client legitimately owns. Any write
+      // that changes a balance field is rejected, whatever its value.
+      allow update: if request.auth != null
+                    && request.auth.uid == uid
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                         .hasAny(['credits', 'credits_expire_at', 'purchases', 'total_searches', 'plan']);
+
+      // Deleting a profile would orphan purchase history tied to real payments.
+      allow delete: if false;
+    }
+
+    // Everything else is served by the API, which authenticates its own callers.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
