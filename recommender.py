@@ -19,6 +19,23 @@ log = logging.getLogger(__name__)
 # Flip to True when you're ready to re-enable v2 work.
 REFERENCES_FEATURE_ENABLED = False
 
+# SUPPORTED_INDEXES: the index names the journal database can actually answer
+# for. Every record carries `indexed_pubmed` and `in_doaj`; no record carries a
+# populated `indexing` list, so a filter on Scopus, Web of Science, Embase and
+# friends could never match anything. Because the hard filter uses issubset(),
+# asking for one of those silently removed all 9,246 journals and returned an
+# empty result set. Anything outside this set is now dropped before filtering
+# and reported back to the caller instead of quietly emptying the results.
+SUPPORTED_INDEXES = {"PubMed/MEDLINE", "PubMed", "DOAJ"}
+
+
+def split_supported_indexes(requested):
+    """Split requested index filters into (supported, unsupported)."""
+    supported, unsupported = [], []
+    for name in requested or []:
+        (supported if name in SUPPORTED_INDEXES else unsupported).append(name)
+    return supported, unsupported
+
 
 @dataclass
 class UserConstraints:

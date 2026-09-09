@@ -37,11 +37,18 @@ class StubEngine:
     def __init__(self):
         self.calls = []
 
+    recommendations = [{
+        "rank": 1, "journal_name": "Stub Journal", "publisher": "Stub Press",
+        "issn": "0000-0000", "oa_model": "Full OA", "apc_estimate": "Free",
+        "indexing": ["PubMed/MEDLINE"], "fit": "Strong", "score": 0.9,
+        "reasons": ["stub"], "concern": "",
+    }]
+
     def recommend(self, abstract, constraints, num_results):
         self.calls.append({"num_results": num_results, "constraints": constraints})
         return {
-            "recommendations": [], "analysis_summary": "stub", "timing": {},
-            "candidates_searched": 0, "candidates_after_filter": 0,
+            "recommendations": list(self.recommendations), "analysis_summary": "stub",
+            "timing": {}, "candidates_searched": 0, "candidates_after_filter": 0,
         }
 
 
@@ -52,7 +59,7 @@ ABSTRACT = (
 
 PREMIUM_REQUEST = {
     "abstract": ABSTRACT, "num_results": 10,
-    "indexing_required": ["Scopus"], "oa_preference": "Open Access Only",
+    "indexing_required": ["PubMed/MEDLINE"], "oa_preference": "Open Access Only",
     "apc_free_only": True, "max_apc": 500, "min_impact_factor": 5.0,
     "target_impact": "Q1 (High)",
 }
@@ -112,7 +119,7 @@ def test_premium_tier_is_honoured(app_module, client):
     call = engine.calls[-1]
     constraints = call["constraints"]
     check("premium: all 10 results delivered", call["num_results"] == 10, call["num_results"])
-    check("premium: indexing filter preserved", constraints.indexing_required == ["Scopus"])
+    check("premium: indexing filter preserved", constraints.indexing_required == ["PubMed/MEDLINE"])
     check("premium: OA filter preserved", constraints.oa_preference == "Open Access Only")
     check("premium: APC-free preserved", constraints.apc_free_only is True)
     check("premium: max APC preserved", constraints.max_apc == 500)
@@ -137,6 +144,83 @@ def test_failed_search_refunds_the_credit(app_module, client):
                     json={"abstract": ABSTRACT})
     check("refund: failed search returns 500", r.status_code == 500, r.status_code)
     check("refund: credit given back", refunded == ["uid-with-credits"], refunded)
+
+
+def test_unsupported_index_is_dropped_not_applied(app_module, client):
+    """An index the database has no data for must not empty the result set.
+
+    The hard filter uses issubset(), so a request for Scopus used to remove all
+    9,246 journals and hand back an empty page the user had paid for. Those
+    names are now stripped before filtering and reported back instead.
+    """
+    app_module._verify_bearer_token = lambda rq: "uid-with-credits"
+    app_module._spend_search_credit = lambda uid: True
+    app_module._read_credits = lambda uid: 4
+    engine = StubEngine()
+    app_module.engine = engine
+
+    r = client.post("/recommend", headers={"Authorization": "Bearer valid"},
+                    json={**PREMIUM_REQUEST,
+                          "indexing_required": ["PubMed/MEDLINE", "Scopus", "Web of Science"]})
+    check("unsupported index: request still succeeds", r.status_code == 200, r.text[:200])
+    constraints = engine.calls[-1]["constraints"]
+    check("unsupported index: only supported names reach the filter",
+          constraints.indexing_required == ["PubMed/MEDLINE"], constraints.indexing_required)
+    reported = r.json().get("unsupported_filters")
+    check("unsupported index: caller is told what was ignored",
+          reported == ["Scopus", "Web of Science"], reported)
+
+    check("unsupported index: options list advertises only what we can answer",
+          app_module.INDEXING_OPTIONS == ["Any", "PubMed/MEDLINE", "DOAJ"],
+          app_module.INDEXING_OPTIONS)
+
+
+def test_empty_result_refunds_the_credit(app_module, client):
+    """A premium search that matches nothing is not a service rendered."""
+    refunded = []
+    app_module._verify_bearer_token = lambda rq: "uid-with-credits"
+    app_module._spend_search_credit = lambda uid: True
+    app_module._read_credits = lambda uid: 4
+    app_module._refund_search_credit = lambda uid: refunded.append(uid)
+
+    class EmptyEngine(StubEngine):
+        recommendations = []
+
+    app_module.engine = EmptyEngine()
+    r = client.post("/recommend", headers={"Authorization": "Bearer valid"},
+                    json={"abstract": ABSTRACT})
+    check("empty result: request still succeeds", r.status_code == 200, r.text[:200])
+    check("empty result: credit given back", refunded == ["uid-with-credits"], refunded)
+    check("empty result: response says the credit came back",
+          r.json().get("credit_refunded") is True, r.json().get("credit_refunded"))
+
+    # A search that found something keeps the credit.
+    refunded.clear()
+    app_module.engine = StubEngine()
+    r = client.post("/recommend", headers={"Authorization": "Bearer valid"},
+                    json={"abstract": ABSTRACT})
+    check("empty result: a search with matches is still charged", refunded == [], refunded)
+    check("empty result: no refund flag on a successful search",
+          r.json().get("credit_refunded") is False, r.json().get("credit_refunded"))
+
+
+def test_free_tier_is_never_refunded(app_module, client):
+    """A free search spends nothing, so an empty one must not mint a credit."""
+    refunded = []
+    app_module._verify_bearer_token = lambda rq: "uid-no-credits"
+    app_module._spend_search_credit = lambda uid: False
+    app_module._read_credits = lambda uid: 0
+    app_module._refund_search_credit = lambda uid: refunded.append(uid)
+
+    class EmptyEngine(StubEngine):
+        recommendations = []
+
+    app_module.engine = EmptyEngine()
+    r = client.post("/recommend", headers={"Authorization": "Bearer valid"},
+                    json={"abstract": ABSTRACT})
+    check("free tier: empty search returns 200", r.status_code == 200, r.text[:200])
+    check("free tier: nothing refunded", refunded == [], refunded)
+    check("free tier: no refund flag", r.json().get("credit_refunded") is False)
 
 
 def test_credit_arithmetic(app_module):
@@ -173,6 +257,9 @@ def test_rate_limit(app_module, client):
 def test_checkout(app_module, client):
     """Checkout trusts the token, and sends the customer back to a page that exists."""
     import stripe
+    # Set the identity this test asserts on rather than inheriting whatever the
+    # previous test left behind — the stubs are module globals.
+    app_module._verify_bearer_token = lambda rq: "uid-with-credits"
     captured = {}
 
     class FakeSession:
@@ -248,6 +335,9 @@ def main():
     test_free_tier_is_capped(app_module, client)
     test_premium_tier_is_honoured(app_module, client)
     test_failed_search_refunds_the_credit(app_module, client)
+    test_unsupported_index_is_dropped_not_applied(app_module, client)
+    test_empty_result_refunds_the_credit(app_module, client)
+    test_free_tier_is_never_refunded(app_module, client)
     test_credit_arithmetic(app_module)
     test_rate_limit(app_module, client)
     test_checkout(app_module, client)

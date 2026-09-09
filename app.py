@@ -24,7 +24,10 @@ except ImportError:
     print("pip install numpy"); sys.exit(1)
 
 from vector_store import VectorStore, EmbeddingService
-from recommender import RecommendationEngine, UserConstraints, AnthropicLLM, OpenAILLM, GeminiLLM
+from recommender import (
+    RecommendationEngine, UserConstraints, AnthropicLLM, OpenAILLM, GeminiLLM,
+    SUPPORTED_INDEXES, split_supported_indexes,
+)
 
 try:
     from report_generator import generate_report, DOCX_AVAILABLE
@@ -501,12 +504,15 @@ class RecommendRequest(BaseModel):
     discipline: str = Field("Any", description=f"Research discipline. Options: {', '.join(DISCIPLINES)}")
 
     # ─── Journal filters ───
-    indexing_required: list[str] = Field(default_factory=list, description="Required indexes. Options: Any, PubMed/MEDLINE, DOAJ, Scopus, Web of Science, Embase, PsycINFO, CINAHL, ERIC, EconLit, MathSciNet, zbMATH, Chemical Abstracts Service (CAS), Inspec, GeoRef, AGRIS, ESCI, SCImago (SJR). Empty [] = no filter. ['Any'] = any indexing.")
+    indexing_required: list[str] = Field(default_factory=list, description="Required indexes. Options: Any, PubMed/MEDLINE, DOAJ. Empty [] = no filter. ['Any'] = any indexing. Any other name is ignored and reported back in `unsupported_filters` — the database has no data for it.")
     oa_preference: str = Field("Any", description="Any | Open Access Only | Hybrid")
     apc_free_only: bool = Field(False, description="true = only free-to-publish journals. Hybrid OK via subscription route.")
     max_apc: float | None = Field(None, description="Max APC in USD. null = no limit.")
-    min_impact_factor: float | None = Field(None, description="Minimum Impact Factor (e.g. 2.0, 5.0). null = no filter.")
-    target_impact: str | None = Field(None, description="Q1 (High) | Q1-Q2 | Q2-Q3 | Q3-Q4. null = no filter.")
+    # Despite the name (kept for API compatibility) this filters on OpenAlex's
+    # 2-year mean citedness, NOT on the Clarivate Journal Impact Factor. The two
+    # are correlated but not interchangeable, and we hold no JIF licence.
+    min_impact_factor: float | None = Field(None, description="Minimum 2-year mean citations per article (OpenAlex), e.g. 2.0. Not the Clarivate Journal Impact Factor. null = no filter.")
+    target_impact: str | None = Field(None, description="Quartile band derived from citation metrics: Q1 (High) | Q1-Q2 | Q2-Q3 | Q3-Q4. null = no filter.")
     num_results: int = Field(3, ge=1, le=10, description="Number of recommendations (1-10).")
     language_preference: str = Field("auto", description="Language preference: 'auto' (detect from abstract), 'en', 'es', 'fr', 'de', 'pt', 'zh', 'ar', 'ja', 'ko', or 'any' (no preference).")
 
@@ -584,6 +590,12 @@ class RecommendResponse(BaseModel):
     # listed or the UI never sees them.
     tier: str = "free"
     credits_remaining: int = 0
+    # Filter values the caller asked for that the database cannot answer. They
+    # were ignored rather than applied, so the UI can say so instead of leaving
+    # the user to wonder why a filter had no effect.
+    unsupported_filters: list[str] = Field(default_factory=list)
+    # True when a premium search returned nothing and the credit was given back.
+    credit_refunded: bool = False
 
 
 class HealthResponse(BaseModel):
@@ -805,6 +817,10 @@ async def recommend(raw_request: Request):
     indexing_any = "Any" in cleaned_indexing
     if indexing_any:
         cleaned_indexing = []  # Don't filter by specific index
+    # Drop index names the database has no data for. Keeping them would make the
+    # hard filter reject every journal and hand back an empty (but paid-for)
+    # result set; the caller is told which ones were ignored instead.
+    cleaned_indexing, unsupported_indexing = split_supported_indexes(cleaned_indexing)
     cleaned_oa = request.oa_preference if request.oa_preference not in PH else "Any"
     cleaned_impact = request.target_impact
     if cleaned_impact and cleaned_impact.lower() in PH: cleaned_impact = None
@@ -857,6 +873,14 @@ async def recommend(raw_request: Request):
             "num_results": request.num_results,
         }
         result["tier"] = "premium" if premium else "free"
+        result["unsupported_filters"] = unsupported_indexing
+        # A premium search that matches nothing is not a service rendered: the
+        # filters were too tight, or the abstract sits outside the corpus. The
+        # credit goes back rather than buying an empty page.
+        result["credit_refunded"] = False
+        if premium and not result.get("recommendations"):
+            _refund_search_credit(uid)
+            result["credit_refunded"] = True
         result["credits_remaining"] = _read_credits(uid)
     except Exception as e:
         # The credit was taken before the search ran; give it back on failure.
@@ -1289,25 +1313,15 @@ ARTICLE_TYPES = [
     "Data Paper / Data Article",
 ]
 
+# Only the indexes the journal database actually records. The list used to
+# advertise Scopus, Web of Science, Embase and a dozen more, none of which are
+# present in any record — selecting one emptied the result set. See
+# SUPPORTED_INDEXES in recommender.py. Add a name back here only once the
+# enrichment pipeline populates the matching field.
 INDEXING_OPTIONS = [
     "Any",
     "PubMed/MEDLINE",
     "DOAJ",
-    "Scopus",
-    "Web of Science",
-    "Embase",
-    "PsycINFO",
-    "CINAHL",
-    "ERIC",
-    "EconLit",
-    "MathSciNet",
-    "zbMATH",
-    "Chemical Abstracts Service (CAS)",
-    "Inspec",
-    "GeoRef",
-    "AGRIS",
-    "Emerging Sources Citation Index (ESCI)",
-    "SCImago (SJR)",
 ]
 
 
