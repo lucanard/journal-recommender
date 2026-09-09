@@ -147,6 +147,46 @@ Open that URL → you should see the landing page!
 
 ---
 
+## Journal Explorer & SEO
+
+The app itself is a hash-routed SPA, so everything behind `#/` is a single URL to
+a search engine. The journal directory (`explorer.py`) is server-rendered on real
+paths so it can be crawled and ranked:
+
+| Path | What it serves |
+|---|---|
+| `/journals` | Directory — search, A–Z, subject facets, paginated |
+| `/journals/subject/{slug}` | Every journal in one subject (336 pages) |
+| `/journal/{slug}` | One journal (9,246 pages) |
+| `/sitemap.xml` | ~9,700 URLs, cached per origin |
+| `/robots.txt` | Points at the sitemap |
+
+The JSON API (`/journals/search`, `/journals/{id}`) is untouched and still
+answers JSON — `test_explorer.py` pins that the routes do not shadow each other.
+
+### PUBLIC_BASE_URL
+
+Canonical tags, Open Graph URLs and every sitemap entry use this origin.
+
+- **Set it** to the domain you actually serve from (e.g. `https://reviewpro.io`)
+  and it wins everywhere.
+- **Leave it unset** and the origin is taken from the incoming request's `Host`
+  and `X-Forwarded-Proto` headers, which is correct behind Render's proxy.
+
+The old compiled-in default only applies when there is no request to read. Check
+what production is using with `GET /robots.txt` — the `Sitemap:` line shows the
+origin the app believes it is on. A canonical pointing at the wrong domain tells
+Google the real page lives somewhere else, so verify this before submitting the
+sitemap.
+
+### After deploying
+
+1. `curl https://<your-domain>/robots.txt` — confirm the sitemap URL is right.
+2. Submit `https://<your-domain>/sitemap.xml` in Google Search Console.
+3. Expect indexing to take weeks, not days, at this page count.
+
+---
+
 ## Step 6: Update index.html API_BASE (if needed)
 
 The current `index.html` auto-detects the API URL:

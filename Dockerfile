@@ -7,7 +7,7 @@ COPY requirements-deploy.txt .
 RUN pip install --no-cache-dir -r requirements-deploy.txt
 
 # Copy application code
-COPY app.py recommender.py vector_store.py report_generator.py ./
+COPY app.py recommender.py vector_store.py report_generator.py explorer.py ./
 COPY 05_generate_embeddings.py ./
 
 # Copy data

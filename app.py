@@ -10,7 +10,7 @@ from pathlib import Path
 
 try:
     from fastapi import FastAPI, HTTPException, Request
-    from fastapi.responses import FileResponse, StreamingResponse
+    from fastapi.responses import FileResponse, StreamingResponse, HTMLResponse, PlainTextResponse, Response
     from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel, Field, field_validator
     from typing import Optional
@@ -24,6 +24,7 @@ except ImportError:
     print("pip install numpy"); sys.exit(1)
 
 from vector_store import VectorStore, EmbeddingService
+import explorer
 from recommender import (
     RecommendationEngine, UserConstraints, AnthropicLLM, OpenAILLM, GeminiLLM,
     SUPPORTED_INDEXES, split_supported_indexes,
@@ -1562,13 +1563,121 @@ def stripe_debug():
     }
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Journal Explorer — server-rendered, crawlable pages
+#
+# The SPA is hash-routed, so every screen behind "#/" is one URL to a search
+# engine and none of it can rank. These routes serve the same journal data as
+# plain HTML on real paths. See explorer.py.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_explorer_index = None
+# Keyed by base URL: without PUBLIC_BASE_URL set the origin comes from the
+# request, so a single cached string would serve the first caller's hostname
+# to everyone else.
+_sitemap_cache: dict[str, str] = {}
+
+
+def _public_base_url(raw_request=None) -> str:
+    """The origin to put in canonicals, Open Graph tags and the sitemap.
+
+    PUBLIC_BASE_URL wins when it is set. When it is not, fall back to the origin
+    the request actually arrived on rather than to a compiled-in default: a
+    canonical pointing at the wrong domain is worse for search than no canonical
+    at all, and this app is served from more than one hostname.
+    """
+    configured = os.environ.get("PUBLIC_BASE_URL", "").strip()
+    if configured:
+        return configured.rstrip("/")
+    if raw_request is not None:
+        # Render and every other proxy terminate TLS, so the scheme on the
+        # request object is http; trust the forwarded header for the real one.
+        host = raw_request.headers.get("host")
+        if host:
+            proto = raw_request.headers.get("x-forwarded-proto", raw_request.url.scheme or "https")
+            return f"{proto.split(',')[0].strip()}://{host}"
+    return "https://pubfit.ai"
+
+
+def _get_explorer_index():
+    """Build the slug index once, on first use.
+
+    Deferred rather than done at startup so a deployment that never gets a
+    crawler does not pay for it, and so the journal store is guaranteed loaded.
+    """
+    global _explorer_index
+    if _explorer_index is None:
+        if not store.journals:
+            raise HTTPException(status_code=503, detail="Journal data not loaded")
+        _explorer_index = explorer.ExplorerIndex(store.journals)
+        log.info(f"Explorer index built: {len(_explorer_index.by_slug)} journals, "
+                 f"{len(_explorer_index.subjects)} subject pages")
+    return _explorer_index
+
+
+@app.get("/journals", include_in_schema=False)
+def explorer_directory(raw_request: Request, q: str = "", letter: str = "", page: int = 1):
+    """Journal directory — searchable, A-Z, paginated."""
+    index = _get_explorer_index()
+    html_out = explorer.render_directory(
+        index, _public_base_url(raw_request), page=max(1, page),
+        letter=(letter or "")[:1].upper(), query=(q or "")[:120],
+    )
+    return HTMLResponse(html_out)
+
+
+@app.get("/journals/subject/{subject_slug}", include_in_schema=False)
+def explorer_subject(raw_request: Request, subject_slug: str, page: int = 1):
+    """Every journal in one subject category."""
+    index = _get_explorer_index()
+    html_out = explorer.render_subject(index, subject_slug, _public_base_url(raw_request), page=max(1, page))
+    if html_out is None:
+        raise HTTPException(status_code=404, detail="Subject not found")
+    return HTMLResponse(html_out)
+
+
+@app.get("/journal/{slug}", include_in_schema=False)
+def explorer_journal(raw_request: Request, slug: str):
+    """One journal: scope, access model, charges, indexing, metrics, neighbours."""
+    index = _get_explorer_index()
+    html_out = explorer.render_journal(index, slug, _public_base_url(raw_request))
+    if html_out is None:
+        raise HTTPException(status_code=404, detail="Journal not found")
+    return HTMLResponse(html_out)
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def explorer_sitemap(raw_request: Request):
+    """Every crawlable URL. Cached — the underlying data only changes on deploy."""
+    base = _public_base_url(raw_request)
+    if base not in _sitemap_cache:
+        _sitemap_cache[base] = explorer.render_sitemap(_get_explorer_index(), base)
+    return Response(content=_sitemap_cache[base], media_type="application/xml")
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def explorer_robots(raw_request: Request):
+    return PlainTextResponse(explorer.render_robots(_public_base_url(raw_request)))
+
+
+_frontend_cache: dict[str, str] = {}
+
+
 @app.get("/", include_in_schema=False)
-def serve_frontend():
-    """Serve the frontend UI."""
+def serve_frontend(raw_request: Request):
+    """Serve the SPA shell, with a canonical tag for the origin it was asked on."""
     html_path = Path(__file__).parent / "index.html"
-    if html_path.exists():
-        return FileResponse(str(html_path), media_type="text/html")
-    raise HTTPException(status_code=404, detail="Frontend not found. Place index.html next to app.py.")
+    if not html_path.exists():
+        raise HTTPException(status_code=404, detail="Frontend not found. Place index.html next to app.py.")
+    base = _public_base_url(raw_request)
+    if base not in _frontend_cache:
+        page = html_path.read_text(encoding="utf-8")
+        _frontend_cache[base] = page.replace(
+            "<!-- CANONICAL_TAG:",
+            f'<link rel="canonical" href="{base}/"/>\n<!-- CANONICAL_TAG:',
+            1,
+        )
+    return HTMLResponse(_frontend_cache[base])
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
