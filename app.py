@@ -640,7 +640,11 @@ if _origins_env:
     ALLOWED_ORIGINS = [o.strip() for o in _origins_env.split(",") if o.strip()]
 else:
     _public_origin = os.environ.get("PUBLIC_BASE_URL", "https://pubfit.ai").rstrip("/")
+    # Rebrand transition: the app is reachable on app.pubfit.ai while pubfit.ai
+    # still serves it too. Both stay allowed until the old origin is retired.
+    _transition_origins = ["https://pubfit.ai", "https://www.pubfit.ai", "https://app.pubfit.ai"]
     ALLOWED_ORIGINS = [_public_origin, "http://localhost:8000", "http://127.0.0.1:8000"]
+    ALLOWED_ORIGINS += [o for o in _transition_origins if o not in ALLOWED_ORIGINS]
 
 app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 

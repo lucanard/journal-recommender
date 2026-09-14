@@ -29,8 +29,10 @@ services:
       # ─── Public URL ───────────────────────────────────────
       # Where Stripe sends the customer back after checkout, and the
       # default CORS origin. Must match the domain actually serving the app.
+      # Rebrand: the app moves to app.pubfit.ai; pubfit.ai becomes the site.
+      # Do NOT apply this value before app.pubfit.ai is attached to the service.
       - key: PUBLIC_BASE_URL
-        value: https://pubfit.ai
+        value: https://app.pubfit.ai
 
       # ─── Access control ───────────────────────────────────
       # AUTH_ENFORCED requires a verified Firebase ID token on the paid
@@ -40,9 +42,10 @@ services:
         value: "true"
       - key: RATE_LIMIT_PER_MINUTE
         value: "20"
-      # Comma-separated. Leave unset to derive it from PUBLIC_BASE_URL.
+      # Comma-separated. Leave unset to derive it from PUBLIC_BASE_URL
+      # (plus the pubfit.ai / app.pubfit.ai transition origins).
       # - key: ALLOWED_ORIGINS
-      #   value: https://pubfit.ai,https://www.pubfit.ai
+      #   value: https://app.pubfit.ai,https://pubfit.ai,https://www.pubfit.ai
 
 # ─── Firebase Admin credentials ───────────────────────────────
 # Required for credit accounting AND for token verification, so the service
