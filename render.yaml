@@ -32,12 +32,16 @@ services:
       # which is the apex: pubfit.ai serves both the landing pages and the app
       # from one Render service (app.py serves index.html at /).
       #
-      # A later split (marketing on pubfit.ai, product on app.pubfit.ai) needs
-      # three things first, in this order: a marketing site to put on the apex,
-      # app.pubfit.ai attached to this service under Settings > Custom Domains
-      # with its certificate issued, and the Stripe URL assertions in
-      # test_gating.py updated. Until then moving this value only sends paying
-      # customers to a host that may not answer.
+      # app.pubfit.ai is already attached to this service and verified, with its
+      # certificate issued, so it answers today — it just serves the same bytes
+      # as the apex, because both point at this one service.
+      #
+      # The split (marketing on pubfit.ai, product on app.pubfit.ai) is a
+      # product decision, not an infrastructure one, and it is blocked on a
+      # marketing site existing to take over the apex. Moving this value before
+      # that only changes which of two identical hosts Stripe returns customers
+      # to. When the split happens, also update the Stripe URL assertions in
+      # test_gating.py and the webhook endpoint registered in Stripe.
       - key: PUBLIC_BASE_URL
         value: https://pubfit.ai
 
