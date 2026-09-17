@@ -33,7 +33,8 @@ LOG_FILE = "openalex_enrichment.log"
 
 OPENALEX_BASE = "https://api.openalex.org"
 # Add your email for the polite pool (10 req/s instead of 1 req/s)
-CONTACT_EMAIL = "your-email@example.com"  # ← CHANGE THIS
+CONTACT_EMAIL_PLACEHOLDER = "your-email@example.com"
+CONTACT_EMAIL = "hello@pubfit.ai"
 
 RATE_LIMIT_DELAY = 0.15  # 0.15s = ~6 req/s (safe margin for polite pool)
 MAX_RETRIES = 3
@@ -63,13 +64,13 @@ def save_json(data, path):
 
 def api_get(url, retries=MAX_RETRIES):
     """Make a GET request with retry logic."""
-    if CONTACT_EMAIL and CONTACT_EMAIL != "your-email@example.com":
+    if CONTACT_EMAIL and CONTACT_EMAIL != CONTACT_EMAIL_PLACEHOLDER:
         sep = "&" if "?" in url else "?"
         url += f"{sep}mailto={quote(CONTACT_EMAIL)}"
     
     for attempt in range(retries):
         try:
-            req = Request(url, headers={"User-Agent": "JournalRecommenderMVP/1.0"})
+            req = Request(url, headers={"User-Agent": "PubFit-enrich/1.0"})
             with urlopen(req, timeout=15) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except HTTPError as e:
@@ -207,7 +208,7 @@ def main():
     log.info("OpenAlex Enrichment Pipeline Starting")
     log.info("=" * 60)
     
-    if CONTACT_EMAIL == "info.reviewpro@gmail.com":
+    if not CONTACT_EMAIL or CONTACT_EMAIL == CONTACT_EMAIL_PLACEHOLDER:
         log.warning("No contact email set! Using slow pool (1 req/s).")
         log.warning("Set CONTACT_EMAIL in the script for 10x faster processing.")
         global RATE_LIMIT_DELAY

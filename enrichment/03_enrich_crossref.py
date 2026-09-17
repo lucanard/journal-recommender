@@ -30,7 +30,7 @@ PROGRESS_FILE = "crossref_progress.json"
 LOG_FILE = "crossref_enrichment.log"
 
 CROSSREF_BASE = "https://api.crossref.org"
-CONTACT_EMAIL = "info.reviewpro@gmail.com"  # ← CHANGE THIS for polite pool
+CONTACT_EMAIL = "hello@pubfit.ai"  # polite pool
 
 RATE_LIMIT_DELAY = 0.1  # seconds between requests (polite pool is generous)
 MAX_RETRIES = 3

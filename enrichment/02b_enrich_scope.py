@@ -36,7 +36,7 @@ PROGRESS_FILE = "scope_progress.json"
 LOG_FILE = "scope_enrichment.log"
 
 OPENALEX_BASE = "https://api.openalex.org"
-CONTACT_EMAIL = "info.reviewpro@gmail.com"  # ← CHANGE THIS for 10x faster access
+CONTACT_EMAIL = "hello@pubfit.ai"  # polite pool (10x faster access)
 
 RATE_LIMIT_DELAY = 0.15      # 0.15s = ~6 req/s (polite pool)
 MAX_RETRIES = 3
