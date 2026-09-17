@@ -65,9 +65,10 @@ const LOGO_SRC='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwMDA
 
 /* CONFIG — replace these placeholders before going live */
 const TALLY_FORM_ID='kdO4Vj';        // create form at tally.so → copy form ID from share link
-// Profile page: lists every event type that is switched on. Point this straight
-// at the PubFit event once its slug is known, so the CTA books in one click.
-const CALENDLY_URL='https://calendly.com/luca-narduzzi';
+// The Calendly free plan allows one active event type, so a single generically
+// named event serves every brand. Its slug still reads congfit because Calendly
+// keeps the original slug when an event is renamed; changing it breaks this URL.
+const CALENDLY_URL='https://calendly.com/luca-narduzzi/congfit';
 const CONTACT_EMAIL='hello@pubfit.ai';
 const PRIVACY_EMAIL='privacy@pubfit.ai';
 
