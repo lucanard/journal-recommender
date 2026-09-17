@@ -65,7 +65,9 @@ const LOGO_SRC='data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwMDA
 
 /* CONFIG — replace these placeholders before going live */
 const TALLY_FORM_ID='kdO4Vj';        // create form at tally.so → copy form ID from share link
-const CALENDLY_URL='https://calendly.com/info-reviewpro/30min'; // create event type at calendly.com
+// Profile page: lists every event type that is switched on. Point this straight
+// at the PubFit event once its slug is known, so the CTA books in one click.
+const CALENDLY_URL='https://calendly.com/luca-narduzzi';
 const CONTACT_EMAIL='hello@pubfit.ai';
 const PRIVACY_EMAIL='privacy@pubfit.ai';
 
@@ -663,7 +665,7 @@ This Privacy Policy explains how PubFit ("we", "us", and "our") collects, uses, 
 
 The data controller for personal data processed through the Service is:
 
-**Luca Narduzzi (autónomo)**, Calle Afán de Ribera 22A, Granada, Spain. CIF/NIF: Y9300111Y. Email: ${PRIVACY_EMAIL}.
+**Luca Narduzzi (autónomo)**, Calle Afán de Ribera 22A, 18005 Granada, Spain. CIF/NIF: Y9300111Y. Email: ${PRIVACY_EMAIL}.
 
 For any questions about this policy or to exercise your rights, contact us at the email above.
 
@@ -758,7 +760,7 @@ We may update this Privacy Policy from time to time. If we make material changes
 
 ## 13. Contact
 
-Email: ${PRIVACY_EMAIL}. Postal: Luca Narduzzi (autónomo), Calle Afán de Ribera 22A, Granada, Spain.
+Email: ${PRIVACY_EMAIL}. Postal: Luca Narduzzi (autónomo), Calle Afán de Ribera 22A, 18005 Granada, Spain.
 
 If you are not satisfied with our response, you may file a complaint with the Agencia Española de Protección de Datos (AEPD) at www.aepd.es.`;
 
@@ -771,7 +773,7 @@ These Terms of Service ("Terms") govern your access to and use of PubFit (the "S
 
 ## 1. Who We Are
 
-The Service is operated by **Luca Narduzzi (autónomo)**, with registered address at Calle Afán de Ribera 22A, Granada, Spain. CIF/NIF: Y9300111Y. Contact: ${CONTACT_EMAIL}.
+The Service is operated by **Luca Narduzzi (autónomo)**, with registered address at Calle Afán de Ribera 22A, 18005 Granada, Spain. CIF/NIF: Y9300111Y. Contact: ${CONTACT_EMAIL}.
 
 ## 2. Description of the Service
 
@@ -867,7 +869,7 @@ EU consumers may also use the European Commission's Online Dispute Resolution pl
 
 ## 17. Contact
 
-Email: ${CONTACT_EMAIL}. Postal: Luca Narduzzi (autónomo), Calle Afán de Ribera 22A, Granada, Spain.`;
+Email: ${CONTACT_EMAIL}. Postal: Luca Narduzzi (autónomo), Calle Afán de Ribera 22A, 18005 Granada, Spain.`;
 
 function PrivacyPage(){return(<div className="bg-white"><div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><MdLite src={PRIVACY_TEXT}/></div></div>);}
 function TermsPage(){return(<div className="bg-white"><div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12"><MdLite src={TERMS_TEXT}/></div></div>);}
