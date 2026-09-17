@@ -28,11 +28,22 @@ services:
 
       # ─── Public URL ───────────────────────────────────────
       # Where Stripe sends the customer back after checkout, and the
-      # default CORS origin. Must match the domain actually serving the app.
-      # Rebrand: the app moves to app.pubfit.ai; pubfit.ai becomes the site.
-      # Do NOT apply this value before app.pubfit.ai is attached to the service.
+      # default CORS origin. Must match the domain actually serving the app,
+      # which is the apex: pubfit.ai serves both the landing pages and the app
+      # from one Render service (app.py serves index.html at /).
+      #
+      # app.pubfit.ai is already attached to this service and verified, with its
+      # certificate issued, so it answers today — it just serves the same bytes
+      # as the apex, because both point at this one service.
+      #
+      # The split (marketing on pubfit.ai, product on app.pubfit.ai) is a
+      # product decision, not an infrastructure one, and it is blocked on a
+      # marketing site existing to take over the apex. Moving this value before
+      # that only changes which of two identical hosts Stripe returns customers
+      # to. When the split happens, also update the Stripe URL assertions in
+      # test_gating.py and the webhook endpoint registered in Stripe.
       - key: PUBLIC_BASE_URL
-        value: https://app.pubfit.ai
+        value: https://pubfit.ai
 
       # ─── Access control ───────────────────────────────────
       # AUTH_ENFORCED requires a verified Firebase ID token on the paid
@@ -45,7 +56,7 @@ services:
       # Comma-separated. Leave unset to derive it from PUBLIC_BASE_URL
       # (plus the pubfit.ai / app.pubfit.ai transition origins).
       # - key: ALLOWED_ORIGINS
-      #   value: https://app.pubfit.ai,https://pubfit.ai,https://www.pubfit.ai
+      #   value: https://pubfit.ai,https://www.pubfit.ai,https://app.pubfit.ai
 
 # ─── Firebase Admin credentials ───────────────────────────────
 # Required for credit accounting AND for token verification, so the service
