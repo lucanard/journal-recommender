@@ -16,7 +16,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-os.environ.setdefault("PUBLIC_BASE_URL", "https://pubfit.ai")
+os.environ.setdefault("PUBLIC_BASE_URL", "https://app.pubfit.ai")
 sys.argv = ["app.py"]
 sys.path.insert(0, HERE)
 os.chdir(HERE)
@@ -199,10 +199,10 @@ def test_checkout(app_module, client):
               captured.get("metadata"))
         success = captured.get("success_url", "")
         check("checkout: success URL puts the query before the hash",
-              success.startswith("https://pubfit.ai/?purchase=success") and success.endswith("#/dashboard"),
+              success.startswith("https://app.pubfit.ai/?purchase=success") and success.endswith("#/dashboard"),
               success)
         check("checkout: cancel URL puts the query before the hash",
-              captured.get("cancel_url") == "https://pubfit.ai/?purchase=cancelled#/pricing",
+              captured.get("cancel_url") == "https://app.pubfit.ai/?purchase=cancelled#/pricing",
               captured.get("cancel_url"))
     finally:
         stripe.checkout.Session.create = original
