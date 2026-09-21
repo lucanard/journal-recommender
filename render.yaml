@@ -27,23 +27,23 @@ services:
         sync: false
 
       # ─── Public URL ───────────────────────────────────────
-      # Where Stripe sends the customer back after checkout, and the
-      # default CORS origin. Must match the domain actually serving the app,
-      # which is the apex: pubfit.ai serves both the landing pages and the app
-      # from one Render service (app.py serves index.html at /).
+      # Where Stripe sends the customer back after checkout, and the default
+      # CORS origin. Must match the domain actually serving the app, which is
+      # the subdomain: pubfit.ai is being handed to the PubFit marketing site
+      # (the lucanard/pubfit-website repo, Render service reviewpro-site) and
+      # this service keeps app.pubfit.ai, already attached and verified with
+      # its certificate issued.
       #
-      # app.pubfit.ai is already attached to this service and verified, with its
-      # certificate issued, so it answers today — it just serves the same bytes
-      # as the apex, because both point at this one service.
+      # This value has to be the subdomain BEFORE pubfit.ai is detached from
+      # this service. In the other order there is a window where a paying
+      # customer returns from Stripe to a pubfit.ai that now serves marketing
+      # pages instead of their dashboard.
       #
-      # The split (marketing on pubfit.ai, product on app.pubfit.ai) is a
-      # product decision, not an infrastructure one, and it is blocked on a
-      # marketing site existing to take over the apex. Moving this value before
-      # that only changes which of two identical hosts Stripe returns customers
-      # to. When the split happens, also update the Stripe URL assertions in
-      # test_gating.py and the webhook endpoint registered in Stripe.
+      # The remaining half of the move is outside this repo: the success and
+      # cancel URLs and the webhook endpoint registered in the Stripe
+      # dashboard.
       - key: PUBLIC_BASE_URL
-        value: https://pubfit.ai
+        value: https://app.pubfit.ai
 
       # ─── Access control ───────────────────────────────────
       # AUTH_ENFORCED requires a verified Firebase ID token on the paid
