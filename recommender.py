@@ -943,17 +943,17 @@ class GeminiLLM:
                 exponential backoff + jitter. Catches the common case of a
                 brief overload window.
       Layer 2 — If the primary model fails ALL retries, falls back to a
-                less-popular fallback model (default: gemini-2.5-flash-lite).
-                Different infrastructure, almost never overloaded. Output
-                quality is a notch lower but vastly better than heuristic mode.
+                different fallback model. Skipped when fallback_model is None
+                or equal to the primary model (both default to
+                gemini-3.5-flash-lite).
 
     Set fallback_model=None to disable Layer 2.
 
     After each successful call, `self.last_model_used` is set to whichever
     model actually answered ("primary" or "fallback").
     """
-    def __init__(self, api_key, model="gemini-2.5-flash",
-                 fallback_model="gemini-2.5-flash-lite"):
+    def __init__(self, api_key, model="gemini-3.5-flash-lite",
+                 fallback_model="gemini-3.5-flash-lite"):
         self.api_key = api_key
         self.model = model
         self.fallback_model = fallback_model
@@ -966,7 +966,9 @@ class GeminiLLM:
             self.last_model_used = "primary"
             return text
         except Exception as primary_err:
-            if not self.fallback_model:
+            # Same model as primary: a second retry round would only double the
+            # latency and wrongly flag "llm_fallback_model" in the UI.
+            if not self.fallback_model or self.fallback_model == self.model:
                 raise
             log.warning(
                 f"Gemini primary model '{self.model}' exhausted retries: {primary_err}. "
@@ -995,10 +997,13 @@ class GeminiLLM:
         payload = json.dumps({
             "system_instruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
+            # Gemini 3.x: temperature left at its default (1.0) as Google
+            # recommends; lower values may cause looping. thinkingLevel replaces
+            # the legacy thinkingBudget (never send both: HTTP 400). "low" is
+            # the closest match to the previous 1024-token budget.
             "generationConfig": {
-                "temperature": 0.3,
                 "maxOutputTokens": 65536,
-                "thinkingConfig": {"thinkingBudget": 1024},
+                "thinkingConfig": {"thinkingLevel": "low"},
             },
         }).encode()
         # Retryable failures (transient server-side or rate-limit)
