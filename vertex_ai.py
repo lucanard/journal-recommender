@@ -1,25 +1,29 @@
 """
 Vertex AI (Gemini Enterprise Agent Platform) access for PubFit Match.
 
-Both the LLM re-ranking and the query embeddings can run on Vertex AI in an EU
-location instead of the Gemini Developer API (generativelanguage.googleapis.com,
-API key). Vertex is authenticated with a dedicated service account, kept
-separate from the Firebase Admin credentials:
+The LLM re-ranking runs only on Vertex AI in an EU location; the query
+embeddings run there too once their startup self-check passes. Vertex is
+authenticated with a dedicated service account, never the Firebase Admin one:
 
   VERTEX_CREDENTIALS_FILE   path to the service-account JSON
                             (default: /etc/secrets/vertex-ai.json, a Render Secret File)
   VERTEX_CREDENTIALS_JSON   the same JSON inline (used when the file is absent)
   VERTEX_PROJECT_ID         GCP project (default: project_id inside the credentials)
-  VERTEX_LOCATION           default "eu" (EU multi-region); must be an EU location
+  VERTEX_LOCATION           default "eu" (EU multi-region); only EU locations are
+                            accepted, the global endpoint never is
 
-No credentials -> load_vertex_auth() returns None and the callers keep the
-Gemini API key path. A non-EU VERTEX_LOCATION is a configuration error and
-raises VertexConfigError, so the service refuses to start rather than send
-data outside the EU.
+No usable credentials -> load_vertex_auth() returns None and the caller
+decides (LLM: heuristic mode; embeddings: temporary API-key fallback). A
+non-EU VERTEX_LOCATION raises VertexConfigError, so the service refuses to
+start rather than send data outside the EU.
+
+Only two Vertex methods are called, publishers.models.generateContent and
+publishers.models.predict, both covered by the aiplatform.endpoints.predict
+permission. The OAuth2 token comes from the service account's own key, which
+needs no IAM permission.
 
 google-auth (and requests, used for the token refresh) are installed
-transitively by firebase-admin; they are imported lazily so a missing package
-degrades to the API-key path instead of breaking the import of this module.
+transitively by firebase-admin; they are imported lazily.
 """
 
 import json
@@ -34,6 +38,11 @@ log = logging.getLogger(__name__)
 CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 DEFAULT_CREDENTIALS_FILE = "/etc/secrets/vertex-ai.json"
 DEFAULT_LOCATION = "eu"
+
+# EU multi-region endpoint (Representational State Endpoint). Fixed in code: the
+# environment can only choose another EU location, never another host.
+# https://docs.cloud.google.com/vertex-ai/generative-ai/docs/learn/locations
+EU_MULTI_REGION_HOST = "aiplatform.eu.rep.googleapis.com"
 
 # Vertex AI locations whose ML processing stays inside the EU: the "eu" multi-region and
 # the Vertex AI regions located in EU member states. europe-west2 (London) and
@@ -51,10 +60,9 @@ EU_VERTEX_LOCATIONS = frozenset({
     "europe-southwest1",  # Madrid
 })
 
-# Multi-region locations are served from their own hostname; regional ones follow
-# the "{location}-aiplatform.googleapis.com" pattern.
-# https://docs.cloud.google.com/vertex-ai/generative-ai/docs/learn/locations
-_MULTI_REGION_HOSTS = {"eu": "aiplatform.eu.rep.googleapis.com"}
+# Where the Firebase Admin key lives (app.py). It must never double as the Vertex key.
+_FIREBASE_KEY_PATHS = ("/etc/secrets/firebase-admin.json",)
+_FIREBASE_SA_PREFIX = "firebase-adminsdk-"
 
 
 class VertexConfigError(ValueError):
@@ -75,7 +83,9 @@ def validate_location(location: str) -> str:
 
 
 def endpoint_host(location: str) -> str:
-    return _MULTI_REGION_HOSTS.get(location, f"{location}-aiplatform.googleapis.com")
+    """Host for an EU location: the EU multi-region REP or an EU regional endpoint."""
+    loc = validate_location(location)
+    return EU_MULTI_REGION_HOST if loc == "eu" else f"{loc}-aiplatform.googleapis.com"
 
 
 class VertexAuth:
@@ -85,8 +95,6 @@ class VertexAuth:
     until it expires; the lock keeps concurrent request threads from
     refreshing it at the same time.
     """
-
-    backend = "vertex"
 
     def __init__(self, credentials, project_id: str, location: str):
         self._credentials = credentials
@@ -114,46 +122,57 @@ class VertexAuth:
             "Authorization": f"Bearer {self.access_token()}",
         }
 
-    def describe(self) -> dict:
-        """Non-secret summary for logs and /health."""
-        return {"location": self.location, "host": endpoint_host(self.location)}
+
+def _firebase_key_paths(env) -> set:
+    paths = {p for p in (env.get("FIREBASE_ADMIN_SDK_FILE"), *_FIREBASE_KEY_PATHS) if p}
+    return {os.path.normcase(os.path.abspath(p)) for p in paths}
 
 
 def _read_service_account_info(env) -> tuple[Optional[dict], str]:
-    """Return (service-account info, source label) or (None, "") when absent."""
+    """Return (service-account info, source label) or (None, "") when absent/unusable."""
     path = env.get("VERTEX_CREDENTIALS_FILE") or DEFAULT_CREDENTIALS_FILE
+    if os.path.normcase(os.path.abspath(path)) in _firebase_key_paths(env):
+        log.error("VERTEX_CREDENTIALS_FILE points at the Firebase Admin key; Vertex AI "
+                  "needs its own service account. Vertex AI disabled.")
+        return None, ""
     if Path(path).is_file():
         try:
             with open(path, encoding="utf-8") as f:
                 return json.load(f), f"file {path}"
         except (OSError, ValueError) as e:
-            log.error(f"Vertex credentials file '{path}' present but unreadable: {e}")
+            # Exception type only: never echo anything read from a credentials file.
+            log.error(f"Vertex credentials file '{path}' present but unreadable "
+                      f"({type(e).__name__}).")
     inline = env.get("VERTEX_CREDENTIALS_JSON")
     if inline:
         try:
             return json.loads(inline), "VERTEX_CREDENTIALS_JSON"
         except ValueError as e:
-            log.error(f"VERTEX_CREDENTIALS_JSON is not valid JSON: {e}")
+            log.error(f"VERTEX_CREDENTIALS_JSON is not valid JSON ({type(e).__name__}).")
     return None, ""
 
 
 def load_vertex_auth(env=None) -> Optional[VertexAuth]:
-    """Build VertexAuth from the environment.
+    """Build VertexAuth from the environment, or None when no usable credentials.
 
-    Returns None (after one WARNING) when no usable Vertex credentials are
-    configured, so callers fall back to the Gemini API key. Raises
-    VertexConfigError when VERTEX_LOCATION is not an EU location.
+    Raises VertexConfigError when VERTEX_LOCATION is not an EU location. Logs
+    ERROR for credentials that are present but unusable; silence when they are
+    simply absent (each caller logs what that means for it).
     """
     env = os.environ if env is None else env
     location = validate_location(env.get("VERTEX_LOCATION") or DEFAULT_LOCATION)
 
     info, source = _read_service_account_info(env)
     if info is None:
-        log.warning(
-            "Vertex AI credentials not found (VERTEX_CREDENTIALS_FILE / "
-            "VERTEX_CREDENTIALS_JSON). Falling back to the Gemini API key "
-            "(generativelanguage.googleapis.com): no EU data residency."
-        )
+        return None
+    if not isinstance(info, dict):
+        log.error(f"Vertex credentials from {source} are not a JSON object. Vertex AI disabled.")
+        return None
+
+    key_id = str(info.get("private_key_id") or "")[:8] or "n/a"
+    if str(info.get("client_email") or "").startswith(_FIREBASE_SA_PREFIX):
+        log.error(f"Vertex credentials from {source} (key id {key_id}…) belong to the "
+                  "Firebase Admin service account; Vertex AI needs its own. Vertex AI disabled.")
         return None
 
     try:
@@ -161,17 +180,17 @@ def load_vertex_auth(env=None) -> Optional[VertexAuth]:
         credentials = service_account.Credentials.from_service_account_info(
             info, scopes=[CLOUD_PLATFORM_SCOPE])
     except Exception as e:  # ImportError, malformed key, wrong credential type
-        log.error(f"Vertex credentials from {source} could not be loaded: {e}. "
-                  "Falling back to the Gemini API key: no EU data residency.")
+        log.error(f"Vertex credentials from {source} (key id {key_id}…) could not be "
+                  f"loaded ({type(e).__name__}). Vertex AI disabled.")
         return None
 
     project_id = (env.get("VERTEX_PROJECT_ID") or info.get("project_id") or "").strip()
     if not project_id:
         log.error(f"Vertex credentials from {source} carry no project_id and "
-                  "VERTEX_PROJECT_ID is unset. Falling back to the Gemini API key.")
+                  "VERTEX_PROJECT_ID is unset. Vertex AI disabled.")
         return None
 
     auth = VertexAuth(credentials, project_id, location)
-    log.info(f"Vertex AI enabled: credentials from {source}, location={location}, "
-             f"endpoint={endpoint_host(location)}")
+    log.info(f"Vertex AI enabled: credentials from {source} (key id {key_id}…), "
+             f"location={location}, endpoint={endpoint_host(location)}")
     return auth

@@ -10,7 +10,7 @@ Step-by-step guide to put the Journal Recommender online for free using [Render]
 - Render hosts the Python backend (FastAPI) + frontend (`index.html`)
 - Pre-generated embeddings are included in the repo (they're only ~15MB)
 - Runtime query embedding uses an API provider (no heavy model in memory)
-- LLM re-ranking uses your Gemini API key
+- LLM re-ranking and query embeddings run on Vertex AI in the EU (see "Vertex AI in the EU" below)
 
 **Cost:**
 - Render free tier: $0/month (spins down after 15 min inactivity → ~30s cold start)
@@ -194,26 +194,35 @@ If you want your Lovable app to call the deployed backend:
 
 ## Vertex AI in the EU (production)
 
-Both AI calls can run on Vertex AI (now branded *Gemini Enterprise Agent Platform*, API `aiplatform.googleapis.com`) in the EU multi-region instead of the Gemini Developer API key:
+Both AI calls run on Vertex AI (now branded *Gemini Enterprise Agent Platform*, API `aiplatform.googleapis.com`) in the EU multi-region. The host and the `eu` location are fixed in code; `VERTEX_LOCATION` can only pick another EU location, never `global`.
 
-| Call | Vertex REST endpoint |
+| Call | Vertex REST method (the only two the app calls) |
 |------|----------------------|
 | LLM re-ranking and tailoring | `POST https://aiplatform.eu.rep.googleapis.com/v1/projects/{project}/locations/eu/publishers/google/models/gemini-3.5-flash-lite:generateContent` |
-| Query embeddings | `POST https://aiplatform.eu.rep.googleapis.com/v1/projects/{project}/locations/eu/publishers/google/models/gemini-embedding-001:predict` (768 dims) |
+| Query embeddings | `POST https://aiplatform.eu.rep.googleapis.com/v1/projects/{project}/locations/eu/publishers/google/models/gemini-embedding-001:predict` (768 dims, no task type) |
 
 Setup for GCP project `pubfit-1a5ad`:
 
 1. Enable the Vertex AI API (`aiplatform.googleapis.com`) in the project.
-2. Create a dedicated service account (e.g. `pubfit-match-vertex`) with the single role **Vertex AI User** (`roles/aiplatform.user`). Do not reuse the Firebase Admin key.
+2. Create a dedicated service account (e.g. `pubfit-match-vertex`) with a custom role holding only `aiplatform.endpoints.predict` (it covers both methods above). Never reuse the Firebase Admin key: the app refuses it.
 3. Create a JSON key for it and upload it in Render → service → Environment → **Secret Files** with the filename `vertex-ai.json`. The app reads `/etc/secrets/vertex-ai.json` by default (`VERTEX_CREDENTIALS_FILE` overrides the path; `VERTEX_CREDENTIALS_JSON` takes the JSON inline instead).
 4. Environment variables: `VERTEX_PROJECT_ID=pubfit-1a5ad`, `VERTEX_LOCATION=eu`.
 5. Redeploy and open `GET /health`. `ai_backends` should read `"llm": "vertex"`, `"embeddings": "vertex"`, `"vertex_location": "eu"` and `"embedding_self_check": {"accepted": true, ...}`.
 
 How it behaves:
 
-- **No Vertex credentials:** one WARNING at startup and both calls keep using `GEMINI_API_KEY`, as before.
+- **LLM: Vertex only, fail closed.** Without usable Vertex credentials the LLM is disabled (one ERROR at startup, `"llm": "disabled"`) and Match ranks heuristically; `/tailor` answers 503. The Gemini API key is never used for text generation.
 - **`VERTEX_LOCATION` outside the EU** (`global`, `us`, `us-central1`, `europe-west2` London, `europe-west6` Zurich…): the service refuses to start.
-- **Embeddings self-check:** the journal vectors in `data/journal_embeddings.npz` were built through the Gemini API. At startup one journal text is re-embedded through Vertex and compared with its stored vector. Vertex is used for query embeddings only if the cosine similarity is at least 0.995; otherwise the API key stays in use and the log shows the cosine. Keep `GEMINI_API_KEY` set until `/health` reports `"embeddings": "vertex"`.
+- **Embeddings self-check:** at startup the embedding text of journal 1 (Kidney360 metadata, no personal data) is re-embedded through Vertex and compared with its stored vector. Cosine ≥ 0.999 → Vertex. Otherwise, or without Vertex credentials, query embeddings take the TEMPORARY Gemini API-key fallback, logged at ERROR with the cosine and reported as `"embeddings": "api_key_fallback"`.
+- **Retiring the API key:** if the self-check fails, rebuild the corpus vectors through Vertex with the same credentials and request as the runtime, commit them, redeploy, and delete `GEMINI_API_KEY` once `/health` reports `"embeddings": "vertex"`:
+
+  ```bash
+  cd data
+  VERTEX_CREDENTIALS_FILE=/path/to/vertex-ai.json python ../05_generate_embeddings.py --provider vertex
+  ```
+
+  This makes 9,246 single-text `predict` calls (gemini-embedding-001 takes one text per request).
+- Credentials are never logged; at most the first 8 characters of `private_key_id`.
 - No new package: `google-auth` (token refresh) is installed by `firebase-admin`.
 
 ---

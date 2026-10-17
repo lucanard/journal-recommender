@@ -949,58 +949,44 @@ class GeminiLLM:
 
     Set fallback_model=None to disable Layer 2.
 
-    Transport: with `vertex` (a vertex_ai.VertexAuth) the calls go to Vertex AI
-    in its EU location with an OAuth2 Bearer token; otherwise to the Gemini
-    Developer API with `api_key`. `self.backend` says which ("vertex" | "api_key").
+    Transport: Vertex AI only (`vertex` is a vertex_ai.VertexAuth), in its EU
+    location with an OAuth2 Bearer token. There is deliberately no API-key
+    path: without Vertex credentials the app runs without an LLM (heuristic
+    ranking) instead of sending manuscripts to the Gemini Developer API.
 
     After each successful call, `self.last_model_used` is set to whichever
     model actually answered ("primary" or "fallback").
     """
-    def __init__(self, api_key=None, model="gemini-3.5-flash-lite",
-                 fallback_model="gemini-3.5-flash-lite", vertex=None):
-        if vertex is None and not api_key:
-            raise ValueError("GeminiLLM needs either Vertex credentials or an API key")
-        self.api_key = api_key
+    backend = "vertex"
+
+    def __init__(self, vertex, model="gemini-3.5-flash-lite",
+                 fallback_model="gemini-3.5-flash-lite"):
+        if vertex is None:
+            raise ValueError("GeminiLLM requires Vertex AI credentials")
         self.vertex = vertex
         self.model = model
         self.fallback_model = fallback_model
         self.last_model_used = None  # "primary" | "fallback" | None
 
-    @property
-    def backend(self):
-        return "vertex" if self.vertex is not None else "api_key"
-
     def _build_request(self, model_name, system, user_msg):
-        """Return (url, payload bytes, headers factory) for the active transport."""
-        if self.vertex is not None:
-            # Vertex REST (v1 GenerateContentRequest): camelCase field names and the
-            # ThinkingLevel enum spelled in capitals ("LOW"), per the API discovery doc.
-            url = self.vertex.model_url(model_name, "generateContent")
-            body = {
-                "systemInstruction": {"parts": [{"text": system}]},
-                "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
-                "generationConfig": {
-                    "maxOutputTokens": 65536,
-                    "thinkingConfig": {"thinkingLevel": "LOW"},
-                },
-            }
-            # Called per attempt so a token that expires during backoff is refreshed.
-            return url, json.dumps(body).encode(), self.vertex.headers
-        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-               f"{model_name}:generateContent?key={self.api_key}")
+        """Return (url, payload bytes, headers factory) for Vertex generateContent."""
+        url = self.vertex.model_url(model_name, "generateContent")
+        # Vertex REST (v1 GenerateContentRequest): camelCase field names and the
+        # ThinkingLevel enum spelled in capitals, per the API discovery document.
         body = {
-            "system_instruction": {"parts": [{"text": system}]},
+            "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
             # Gemini 3.x: temperature left at its default (1.0) as Google
             # recommends; lower values may cause looping. thinkingLevel replaces
-            # the legacy thinkingBudget (never send both: HTTP 400). "low" is
+            # the legacy thinkingBudget (never send both: HTTP 400). LOW is
             # the closest match to the previous 1024-token budget.
             "generationConfig": {
                 "maxOutputTokens": 65536,
-                "thinkingConfig": {"thinkingLevel": "low"},
+                "thinkingConfig": {"thinkingLevel": "LOW"},
             },
         }
-        return url, json.dumps(body).encode(), lambda: {"Content-Type": "application/json"}
+        # Headers are built per attempt so a token that expires during backoff is refreshed.
+        return url, json.dumps(body).encode(), self.vertex.headers
 
     def create_message(self, system, user_msg):
         # Try primary model with retries first

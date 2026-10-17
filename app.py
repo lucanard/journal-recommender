@@ -592,7 +592,7 @@ class HealthResponse(BaseModel):
     version: str
     vector_store: dict
     llm_enabled: bool
-    # Transport per AI call: "vertex" (Vertex AI, EU) | "api_key" | "local" | "disabled".
+    # Transport per AI call, see _ai_backends(): "vertex" (Vertex AI, EU) is the target.
     ai_backends: dict = {}
 
 
@@ -699,13 +699,13 @@ def initialize(args):
 
     llm_provider = args.llm or os.environ.get("LLM_PROVIDER", "none")
 
-    # Vertex AI (EU) replaces the Gemini API key wherever it can. None when no
-    # Vertex credentials are configured: both paths below then keep the API key.
-    # A non-EU VERTEX_LOCATION raises here and the service does not start.
+    # Gemini runs on Vertex AI in the EU. None when no usable Vertex credentials:
+    # the LLM is then disabled (heuristic mode) and query embeddings take the
+    # temporary API-key fallback. A non-EU VERTEX_LOCATION raises here and the
+    # service does not start.
     vertex = load_vertex_auth() if "gemini" in (emb_provider, llm_provider) else None
-    if vertex is not None and emb_provider == "gemini":
-        embedder.enable_vertex(vertex, store, JOURNALS_JSONL,
-                               task_type=os.environ.get("VERTEX_EMBEDDING_TASK_TYPE"))
+    if emb_provider == "gemini":
+        embedder.enable_vertex(vertex, store, JOURNALS_JSONL)
     log.info(f"Embedding: {emb_provider} ({emb_model}) via {embedder.backend}")
 
     llm_key = args.llm_key or os.environ.get("LLM_API_KEY", "")
@@ -717,11 +717,15 @@ def initialize(args):
         llm_key = llm_key or os.environ.get("OPENAI_API_KEY", "")
         if llm_key: llm_client = OpenAILLM(api_key=llm_key); log.info("LLM: OpenAI")
     elif llm_provider == "gemini":
-        llm_key = llm_key or os.environ.get("GEMINI_API_KEY", "")
-        if vertex is not None or llm_key:
-            llm_client = GeminiLLM(api_key=llm_key or None, vertex=vertex)
-            log.info(f"LLM: Google Gemini ({llm_client.model}) via {llm_client.backend}")
-    if not llm_client and llm_provider != "none":
+        # Vertex only, fail closed: no API-key path for text generation.
+        if vertex is not None:
+            llm_client = GeminiLLM(vertex=vertex)
+            log.info(f"LLM: Google Gemini ({llm_client.model}) via Vertex AI, {vertex.location}")
+        else:
+            log.error("LLM disabled: no usable Vertex AI credentials (VERTEX_CREDENTIALS_FILE / "
+                      "VERTEX_CREDENTIALS_JSON). Running in heuristic mode; the Gemini API "
+                      "key is never used for text generation.")
+    if not llm_client and llm_provider not in ("none", "gemini"):
         log.warning(f"{llm_provider} key not set — LLM disabled")
     elif llm_provider == "none":
         log.info("LLM: disabled")
@@ -735,7 +739,11 @@ def initialize(args):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _ai_backends() -> dict:
-    """Which transport serves the LLM and the query embeddings. No secrets."""
+    """Which transport serves the LLM and the query embeddings. No secrets.
+
+    llm: vertex | disabled (| api_key for the non-Gemini providers);
+    embeddings: vertex | api_key_fallback (temporary) | local | api_key.
+    """
     llm = engine.llm if engine else None
     info = {
         "llm": getattr(llm, "backend", "api_key") if llm is not None else "disabled",

@@ -14,13 +14,38 @@ from typing import Optional
 
 log = logging.getLogger(__name__)
 
-# Must match 05_generate_embeddings.py embed_gemini(): the stored journal vectors
-# are gemini-embedding-001 truncated to 768 dimensions, no task type set.
+# Must match 05_generate_embeddings.py: the stored journal vectors are
+# gemini-embedding-001 reduced to 768 dimensions (the model's default is 3072),
+# with no task type set.
 GEMINI_EMBEDDING_DIMENSIONS = 768
 
 # Vertex is used for query embeddings only if it reproduces a stored journal
 # vector at least this closely (see EmbeddingService.enable_vertex).
-VERTEX_SELF_CHECK_MIN_COSINE = 0.995
+VERTEX_SELF_CHECK_MIN_COSINE = 0.999
+
+# The self-check text: journal 1's embedding input (Kidney360: title, scope,
+# subjects, publisher). Public journal metadata, no personal data.
+SELF_CHECK_JOURNAL_ID = 1
+
+
+def vertex_embed_text(vertex, model: str, text: str) -> list[float]:
+    """Embed one text with gemini-embedding-001 on Vertex AI (publishers.models.predict).
+
+    Shared by the query path and 05_generate_embeddings.py so corpus and queries
+    are built with the identical request: one text per call (the model's limit),
+    outputDimensionality 768 in `parameters`, and no task_type, as at build time.
+    """
+    from urllib.request import urlopen, Request
+
+    payload = json.dumps({
+        "instances": [{"content": text}],
+        "parameters": {"outputDimensionality": GEMINI_EMBEDDING_DIMENSIONS},
+    }).encode()
+    req = Request(vertex.model_url(model, "predict"), data=payload,
+                  headers=vertex.headers(), method="POST")
+    with urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read().decode())
+    return result["predictions"][0]["embeddings"]["values"]
 
 
 class VectorStore:
@@ -147,48 +172,55 @@ class EmbeddingService:
         # Vertex AI transport for the gemini provider; set only by enable_vertex()
         # once the self-check has passed.
         self.vertex = None
-        self.vertex_task_type: Optional[str] = None
         self.vertex_self_check: Optional[dict] = None
 
     @property
     def backend(self) -> str:
-        """Transport actually used for query embeddings: vertex | api_key | local."""
+        """Transport for query embeddings: vertex | api_key_fallback | local | api_key.
+
+        "api_key_fallback" is the gemini provider on the Gemini API key because
+        Vertex is unavailable or failed its self-check: temporary by design.
+        """
         if self.provider == "local":
             return "local"
-        if self.provider == "gemini" and self.vertex is not None:
-            return "vertex"
+        if self.provider == "gemini":
+            return "vertex" if self.vertex is not None else "api_key_fallback"
         return "api_key"
 
     def enable_vertex(self, vertex, store: "VectorStore", input_path,
-                      task_type: Optional[str] = None,
                       min_cosine: float = VERTEX_SELF_CHECK_MIN_COSINE) -> bool:
         """Switch gemini query embeddings to Vertex AI if it matches the stored vectors.
 
-        Vertex and the Gemini API are two transports for gemini-embedding-001, but
-        the journal vectors were built through the Gemini API. One journal text is
-        re-embedded through Vertex with the build-time settings and compared with
-        its stored vector; only a near-identical result (cosine >= min_cosine)
-        switches the transport. Otherwise the API-key path is kept, because a
-        query embedded in a slightly different space silently degrades ranking.
+        The journal vectors may have been built through the Gemini API. The fixed
+        self-check text (journal SELF_CHECK_JOURNAL_ID) is re-embedded through
+        Vertex with the build-time settings and compared with its stored vector;
+        only cosine >= min_cosine switches the transport. Otherwise, and when
+        `vertex` is None, queries stay on the Gemini API key as a temporary
+        fallback, logged at ERROR: a query embedded in a slightly different space
+        silently degrades ranking, which is worse than the fallback.
         """
         if self.provider != "gemini":
             return False
-        self.vertex_task_type = (task_type or "").strip().upper() or None
+        fallback = ("Query embeddings use the TEMPORARY Gemini API-key fallback "
+                    "(embeddings=api_key_fallback).")
+        if vertex is None:
+            self.vertex_self_check = {"accepted": False, "error": "no_vertex_credentials"}
+            log.error(f"Vertex AI unavailable (no usable credentials). {fallback}")
+            return False
         sample = _find_self_check_sample(store, input_path)
         if sample is None:
             self.vertex_self_check = {"accepted": False, "error": "no_sample"}
-            log.warning(f"Vertex embedding self-check skipped: no journal text in "
-                        f"{input_path} has a stored vector. Query embeddings stay "
-                        "on the Gemini API key.")
+            log.error(f"Vertex embedding self-check could not run: journal "
+                      f"{SELF_CHECK_JOURNAL_ID} has no text in {input_path} or no stored "
+                      f"vector. {fallback}")
             return False
         journal_id, text, stored = sample
         try:
-            fresh = np.asarray(self._embed_gemini_vertex(text, vertex), dtype=np.float32)
+            fresh = np.asarray(vertex_embed_text(vertex, self.model, text), dtype=np.float32)
         except Exception as e:  # HTTP/auth/parse failures all mean "do not switch"
             self.vertex_self_check = {"accepted": False, "error": type(e).__name__,
                                       "http_status": getattr(e, "code", None)}
-            log.warning(f"Vertex embedding self-check failed ({type(e).__name__}: {e}). "
-                        "Query embeddings stay on the Gemini API key.")
+            log.error(f"Vertex embedding self-check failed ({type(e).__name__}: {e}). {fallback}")
             return False
         cosine = _cosine(fresh, stored) if fresh.shape == stored.shape else float("nan")
         accepted = cosine >= min_cosine  # False for NaN (dimension mismatch)
@@ -199,11 +231,11 @@ class EmbeddingService:
             log.info(f"Vertex embedding self-check passed: cosine={cosine:.6f} on journal "
                      f"{journal_id}. Query embeddings use Vertex AI.")
         else:
-            log.warning(
+            log.error(
                 f"Vertex embedding self-check REJECTED: cosine={cosine:.6f} (threshold "
                 f"{min_cosine}) on journal {journal_id}, dims {fresh.shape} vs "
-                f"{stored.shape}, task_type={self.vertex_task_type or 'unset'}. "
-                "Query embeddings stay on the Gemini API key.")
+                f"{stored.shape}. {fallback} Rebuild the corpus vectors through Vertex "
+                "(05_generate_embeddings.py --provider vertex) to retire the API key.")
         return accepted
 
     def embed_query(self, text: str) -> list[float]:
@@ -277,7 +309,7 @@ class EmbeddingService:
 
     def _embed_gemini(self, text: str) -> list[float]:
         if self.vertex is not None:
-            return self._embed_gemini_vertex(text, self.vertex)
+            return vertex_embed_text(self.vertex, self.model, text)
 
         from urllib.request import urlopen, Request
         import json as _json
@@ -293,29 +325,6 @@ class EmbeddingService:
         with urlopen(req, timeout=30) as resp:
             result = _json.loads(resp.read().decode())
         return result["embedding"]["values"]
-
-    def _embed_gemini_vertex(self, text: str, vertex) -> list[float]:
-        """gemini-embedding-001 on Vertex AI: publishers.models.predict.
-
-        One text per request for this model. task_type is left out unless set
-        (Vertex then defaults to RETRIEVAL_QUERY), and outputDimensionality goes
-        in `parameters`, not in the instance.
-        """
-        from urllib.request import urlopen, Request
-        import json as _json
-
-        instance = {"content": text}
-        if self.vertex_task_type:
-            instance["task_type"] = self.vertex_task_type
-        payload = _json.dumps({
-            "instances": [instance],
-            "parameters": {"outputDimensionality": GEMINI_EMBEDDING_DIMENSIONS},
-        }).encode()
-        req = Request(vertex.model_url(self.model, "predict"), data=payload,
-                      headers=vertex.headers(), method="POST")
-        with urlopen(req, timeout=30) as resp:
-            result = _json.loads(resp.read().decode())
-        return result["predictions"][0]["embeddings"]["values"]
 
     def _embed_local(self, text: str) -> list[float]:
         if self._local_model is None:
@@ -333,20 +342,20 @@ def _cosine(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def _find_self_check_sample(store: VectorStore, input_path):
-    """First journal in the embeddings input file that has a stored vector.
+    """The fixed self-check journal (SELF_CHECK_JOURNAL_ID) with its stored vector.
 
     Returns (journal_id, text, stored_vector) or None. The text is the exact
     string 05_generate_embeddings.py embedded at build time.
     """
-    if store.embeddings is None or not store.id_to_idx or not Path(input_path).is_file():
+    idx = store.id_to_idx.get(SELF_CHECK_JOURNAL_ID)
+    if store.embeddings is None or idx is None or not Path(input_path).is_file():
         return None
     with open(input_path, encoding="utf-8") as f:
         for line in f:
             if not line.strip():
                 continue
             rec = json.loads(line)
-            text = rec.get("text") or ""
-            idx = store.id_to_idx.get(int(rec.get("id", -1)))
-            if text.strip() and idx is not None:
-                return int(rec["id"]), text, store.embeddings[idx]
+            if int(rec.get("id", -1)) == SELF_CHECK_JOURNAL_ID:
+                text = rec.get("text") or ""
+                return (SELF_CHECK_JOURNAL_ID, text, store.embeddings[idx]) if text.strip() else None
     return None
