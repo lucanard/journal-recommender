@@ -192,6 +192,32 @@ If you want your Lovable app to call the deployed backend:
 
 ---
 
+## Vertex AI in the EU (production)
+
+Both AI calls can run on Vertex AI (now branded *Gemini Enterprise Agent Platform*, API `aiplatform.googleapis.com`) in the EU multi-region instead of the Gemini Developer API key:
+
+| Call | Vertex REST endpoint |
+|------|----------------------|
+| LLM re-ranking and tailoring | `POST https://aiplatform.eu.rep.googleapis.com/v1/projects/{project}/locations/eu/publishers/google/models/gemini-3.5-flash-lite:generateContent` |
+| Query embeddings | `POST https://aiplatform.eu.rep.googleapis.com/v1/projects/{project}/locations/eu/publishers/google/models/gemini-embedding-001:predict` (768 dims) |
+
+Setup for GCP project `pubfit-1a5ad`:
+
+1. Enable the Vertex AI API (`aiplatform.googleapis.com`) in the project.
+2. Create a dedicated service account (e.g. `pubfit-match-vertex`) with the single role **Vertex AI User** (`roles/aiplatform.user`). Do not reuse the Firebase Admin key.
+3. Create a JSON key for it and upload it in Render → service → Environment → **Secret Files** with the filename `vertex-ai.json`. The app reads `/etc/secrets/vertex-ai.json` by default (`VERTEX_CREDENTIALS_FILE` overrides the path; `VERTEX_CREDENTIALS_JSON` takes the JSON inline instead).
+4. Environment variables: `VERTEX_PROJECT_ID=pubfit-1a5ad`, `VERTEX_LOCATION=eu`.
+5. Redeploy and open `GET /health`. `ai_backends` should read `"llm": "vertex"`, `"embeddings": "vertex"`, `"vertex_location": "eu"` and `"embedding_self_check": {"accepted": true, ...}`.
+
+How it behaves:
+
+- **No Vertex credentials:** one WARNING at startup and both calls keep using `GEMINI_API_KEY`, as before.
+- **`VERTEX_LOCATION` outside the EU** (`global`, `us`, `us-central1`, `europe-west2` London, `europe-west6` Zurich…): the service refuses to start.
+- **Embeddings self-check:** the journal vectors in `data/journal_embeddings.npz` were built through the Gemini API. At startup one journal text is re-embedded through Vertex and compared with its stored vector. Vertex is used for query embeddings only if the cosine similarity is at least 0.995; otherwise the API key stays in use and the log shows the cosine. Keep `GEMINI_API_KEY` set until `/health` reports `"embeddings": "vertex"`.
+- No new package: `google-auth` (token refresh) is installed by `firebase-admin`.
+
+---
+
 ## Troubleshooting
 
 **"No embeddings found — DEGRADED MODE"**

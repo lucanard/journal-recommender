@@ -25,6 +25,7 @@ except ImportError:
 
 from vector_store import VectorStore, EmbeddingService
 from recommender import RecommendationEngine, UserConstraints, AnthropicLLM, OpenAILLM, GeminiLLM
+from vertex_ai import load_vertex_auth
 
 try:
     from report_generator import generate_report, DOCX_AVAILABLE
@@ -591,6 +592,8 @@ class HealthResponse(BaseModel):
     version: str
     vector_store: dict
     llm_enabled: bool
+    # Transport per AI call: "vertex" (Vertex AI, EU) | "api_key" | "local" | "disabled".
+    ai_backends: dict = {}
 
 
 class FeedbackRequest(BaseModel):
@@ -693,9 +696,18 @@ def initialize(args):
     if emb_provider != "local" and not emb_key:
         emb_key = os.environ.get(f"{emb_provider.upper()}_API_KEY", "")
     embedder = EmbeddingService(provider=emb_provider, model=emb_model, api_key=emb_key)
-    log.info(f"Embedding: {emb_provider} ({emb_model})")
 
     llm_provider = args.llm or os.environ.get("LLM_PROVIDER", "none")
+
+    # Vertex AI (EU) replaces the Gemini API key wherever it can. None when no
+    # Vertex credentials are configured: both paths below then keep the API key.
+    # A non-EU VERTEX_LOCATION raises here and the service does not start.
+    vertex = load_vertex_auth() if "gemini" in (emb_provider, llm_provider) else None
+    if vertex is not None and emb_provider == "gemini":
+        embedder.enable_vertex(vertex, store, JOURNALS_JSONL,
+                               task_type=os.environ.get("VERTEX_EMBEDDING_TASK_TYPE"))
+    log.info(f"Embedding: {emb_provider} ({emb_model}) via {embedder.backend}")
+
     llm_key = args.llm_key or os.environ.get("LLM_API_KEY", "")
     llm_client = None
     if llm_provider == "anthropic":
@@ -706,7 +718,9 @@ def initialize(args):
         if llm_key: llm_client = OpenAILLM(api_key=llm_key); log.info("LLM: OpenAI")
     elif llm_provider == "gemini":
         llm_key = llm_key or os.environ.get("GEMINI_API_KEY", "")
-        if llm_key: llm_client = GeminiLLM(api_key=llm_key); log.info("LLM: Google Gemini")
+        if vertex is not None or llm_key:
+            llm_client = GeminiLLM(api_key=llm_key or None, vertex=vertex)
+            log.info(f"LLM: Google Gemini ({llm_client.model}) via {llm_client.backend}")
     if not llm_client and llm_provider != "none":
         log.warning(f"{llm_provider} key not set — LLM disabled")
     elif llm_provider == "none":
@@ -720,10 +734,26 @@ def initialize(args):
 # Endpoints
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _ai_backends() -> dict:
+    """Which transport serves the LLM and the query embeddings. No secrets."""
+    llm = engine.llm if engine else None
+    info = {
+        "llm": getattr(llm, "backend", "api_key") if llm is not None else "disabled",
+        "embeddings": getattr(embedder, "backend", "api_key") if embedder is not None else "disabled",
+    }
+    vertex = getattr(llm, "vertex", None) or getattr(embedder, "vertex", None)
+    if vertex is not None:
+        info["vertex_location"] = vertex.location
+    self_check = getattr(embedder, "vertex_self_check", None)
+    if self_check is not None:
+        info["embedding_self_check"] = self_check
+    return info
+
+
 @app.get("/health", response_model=HealthResponse)
 def health_check():
     """System status."""
-    return HealthResponse(status="ok" if store.is_loaded else "degraded", version="1.1.0", vector_store=store.get_stats(), llm_enabled=engine.llm is not None if engine else False)
+    return HealthResponse(status="ok" if store.is_loaded else "degraded", version="1.1.0", vector_store=store.get_stats(), llm_enabled=engine.llm is not None if engine else False, ai_backends=_ai_backends())
 
 
 @app.post("/recommend",

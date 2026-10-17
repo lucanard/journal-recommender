@@ -949,15 +949,58 @@ class GeminiLLM:
 
     Set fallback_model=None to disable Layer 2.
 
+    Transport: with `vertex` (a vertex_ai.VertexAuth) the calls go to Vertex AI
+    in its EU location with an OAuth2 Bearer token; otherwise to the Gemini
+    Developer API with `api_key`. `self.backend` says which ("vertex" | "api_key").
+
     After each successful call, `self.last_model_used` is set to whichever
     model actually answered ("primary" or "fallback").
     """
-    def __init__(self, api_key, model="gemini-3.5-flash-lite",
-                 fallback_model="gemini-3.5-flash-lite"):
+    def __init__(self, api_key=None, model="gemini-3.5-flash-lite",
+                 fallback_model="gemini-3.5-flash-lite", vertex=None):
+        if vertex is None and not api_key:
+            raise ValueError("GeminiLLM needs either Vertex credentials or an API key")
         self.api_key = api_key
+        self.vertex = vertex
         self.model = model
         self.fallback_model = fallback_model
         self.last_model_used = None  # "primary" | "fallback" | None
+
+    @property
+    def backend(self):
+        return "vertex" if self.vertex is not None else "api_key"
+
+    def _build_request(self, model_name, system, user_msg):
+        """Return (url, payload bytes, headers factory) for the active transport."""
+        if self.vertex is not None:
+            # Vertex REST (v1 GenerateContentRequest): camelCase field names and the
+            # ThinkingLevel enum spelled in capitals ("LOW"), per the API discovery doc.
+            url = self.vertex.model_url(model_name, "generateContent")
+            body = {
+                "systemInstruction": {"parts": [{"text": system}]},
+                "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
+                "generationConfig": {
+                    "maxOutputTokens": 65536,
+                    "thinkingConfig": {"thinkingLevel": "LOW"},
+                },
+            }
+            # Called per attempt so a token that expires during backoff is refreshed.
+            return url, json.dumps(body).encode(), self.vertex.headers
+        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+               f"{model_name}:generateContent?key={self.api_key}")
+        body = {
+            "system_instruction": {"parts": [{"text": system}]},
+            "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
+            # Gemini 3.x: temperature left at its default (1.0) as Google
+            # recommends; lower values may cause looping. thinkingLevel replaces
+            # the legacy thinkingBudget (never send both: HTTP 400). "low" is
+            # the closest match to the previous 1024-token budget.
+            "generationConfig": {
+                "maxOutputTokens": 65536,
+                "thinkingConfig": {"thinkingLevel": "low"},
+            },
+        }
+        return url, json.dumps(body).encode(), lambda: {"Content-Type": "application/json"}
 
     def create_message(self, system, user_msg):
         # Try primary model with retries first
@@ -992,20 +1035,7 @@ class GeminiLLM:
         import random as _random
         from urllib.request import urlopen, Request
         from urllib.error import HTTPError, URLError
-        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-               f"{model_name}:generateContent?key={self.api_key}")
-        payload = json.dumps({
-            "system_instruction": {"parts": [{"text": system}]},
-            "contents": [{"role": "user", "parts": [{"text": user_msg}]}],
-            # Gemini 3.x: temperature left at its default (1.0) as Google
-            # recommends; lower values may cause looping. thinkingLevel replaces
-            # the legacy thinkingBudget (never send both: HTTP 400). "low" is
-            # the closest match to the previous 1024-token budget.
-            "generationConfig": {
-                "maxOutputTokens": 65536,
-                "thinkingConfig": {"thinkingLevel": "low"},
-            },
-        }).encode()
+        url, payload, make_headers = self._build_request(model_name, system, user_msg)
         # Retryable failures (transient server-side or rate-limit)
         # 429 = rate limited; 500 = internal; 502 = bad gateway; 503 = overloaded; 504 = timeout
         RETRY_CODES = {429, 500, 502, 503, 504}
@@ -1013,8 +1043,7 @@ class GeminiLLM:
         last_err = None
         for attempt in range(MAX_ATTEMPTS):
             try:
-                req = Request(url, data=payload,
-                              headers={"Content-Type": "application/json"},
+                req = Request(url, data=payload, headers=make_headers(),
                               method="POST")
                 with urlopen(req, timeout=90) as resp:
                     result = json.loads(resp.read().decode())

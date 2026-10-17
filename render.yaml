@@ -17,6 +17,29 @@ services:
       - key: EMBEDDING_PROVIDER
         value: gemini
 
+      # ─── Vertex AI, EU (Gemini Enterprise Agent Platform) ──
+      # NOTE: the live service is configured in the Render dashboard and does
+      # not read this file; these entries document what to set there.
+      # With Vertex credentials present, LLM re-ranking runs on Vertex AI in
+      # the EU multi-region, and so do query embeddings once the startup
+      # self-check passes. GEMINI_API_KEY then remains only as a fallback.
+      # Credentials: upload the Vertex service-account JSON as a Secret File
+      # at /etc/secrets/vertex-ai.json (default path, see DEPLOY.md).
+      - key: VERTEX_PROJECT_ID
+        value: pubfit-1a5ad
+      - key: VERTEX_LOCATION
+        value: eu               # EU locations only; global/us/London/Zurich refuse to start
+      # Optional alternative to the Secret File: the same JSON inline.
+      # - key: VERTEX_CREDENTIALS_JSON
+      #   sync: false
+      # Optional: Secret File somewhere else.
+      # - key: VERTEX_CREDENTIALS_FILE
+      #   value: /etc/secrets/vertex-ai.json
+      # Optional: embedding task type for Vertex. Leave unset: the stored
+      # journal vectors were built without one and the self-check validates it.
+      # - key: VERTEX_EMBEDDING_TASK_TYPE
+      #   value: RETRIEVAL_QUERY
+
       # ─── Payments ─────────────────────────────────────────
       # Both are set in the Render dashboard, never committed.
       # STRIPE_SECRET_KEY      → Stripe > Developers > API keys (sk_live_…)
