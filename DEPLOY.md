@@ -194,26 +194,31 @@ If you want your Lovable app to call the deployed backend:
 
 ## Vertex AI in the EU (production)
 
-Both AI calls run on Vertex AI (now branded *Gemini Enterprise Agent Platform*, API `aiplatform.googleapis.com`) in the EU multi-region. The host and the `eu` location are fixed in code; `VERTEX_LOCATION` can only pick another EU location, never `global`.
+Both AI calls run on Vertex AI (now branded *Gemini Enterprise Agent Platform*, API `aiplatform.googleapis.com`) inside the EU, in two different locations:
+
+- **Text generation** → `VERTEX_LOCATION`, default `eu` (EU multi-region, host `aiplatform.eu.rep.googleapis.com`).
+- **Embeddings** (query self-check, queries, corpus rebuild) → `VERTEX_EMBEDDING_LOCATION`, default `europe-west4` (Netherlands, host `europe-west4-aiplatform.googleapis.com`). `gemini-embedding-001` is **not served on the `eu` multi-region**: `:predict` and `:embedContent` there answer 404 *"Publisher model … was not found or your project does not have access to it"*, while `europe-west4` answers 200 (checked from Cloud Shell on 2026-10-19).
+
+Both settings go through the same EU allowlist (`eu` plus the Vertex regions in EU member states) and never accept `global`. `VERTEX_EMBEDDING_LOCATION=eu` passes the allowlist but the app logs a WARNING and the self-check fails with 404, so queries stay on the API-key fallback: don't use it.
 
 | Call | Vertex REST method (the only two the app calls) |
 |------|----------------------|
 | LLM re-ranking and tailoring | `POST https://aiplatform.eu.rep.googleapis.com/v1/projects/{project}/locations/eu/publishers/google/models/gemini-3.5-flash-lite:generateContent` |
-| Query embeddings | `POST https://aiplatform.eu.rep.googleapis.com/v1/projects/{project}/locations/eu/publishers/google/models/gemini-embedding-001:predict` (768 dims, no task type) |
+| Query embeddings | `POST https://europe-west4-aiplatform.googleapis.com/v1/projects/{project}/locations/europe-west4/publishers/google/models/gemini-embedding-001:predict` (768 dims, no task type) |
 
 Setup for GCP project `pubfit-1a5ad`:
 
 1. Enable the Vertex AI API (`aiplatform.googleapis.com`) in the project.
 2. Create a dedicated service account (e.g. `pubfit-match-vertex`) with a custom role holding only `aiplatform.endpoints.predict` (it covers both methods above). Never reuse the Firebase Admin key: the app refuses it.
 3. Create a JSON key for it and upload it in Render → service → Environment → **Secret Files** with the filename `vertex-ai.json`. The app reads `/etc/secrets/vertex-ai.json` by default (`VERTEX_CREDENTIALS_FILE` overrides the path; `VERTEX_CREDENTIALS_JSON` takes the JSON inline instead).
-4. Environment variables: `VERTEX_PROJECT_ID=pubfit-1a5ad`, `VERTEX_LOCATION=eu`.
-5. Redeploy and open `GET /health`. `ai_backends` should read `"llm": "vertex"`, `"embeddings": "vertex"`, `"vertex_location": "eu"` and `"embedding_self_check": {"accepted": true, ...}`.
+4. Environment variables: `VERTEX_PROJECT_ID=pubfit-1a5ad`, `VERTEX_LOCATION=eu`, `VERTEX_EMBEDDING_LOCATION=europe-west4` (the last one is the default; setting it explicitly documents the choice).
+5. Redeploy and open `GET /health`. `ai_backends` should read `"llm": "vertex"`, `"embeddings": "vertex"`, `"vertex_location": "eu"`, `"vertex_embedding_location": "europe-west4"` and `"embedding_self_check": {"accepted": true, ...}`. `vertex_embedding_location` is where the self-check ran, so with the LLM on Vertex it is reported even when the check failed and `embeddings` reads `api_key_fallback` (e.g. `"embedding_self_check": {"accepted": false, "error": "HTTPError", "http_status": 404}` means the model is not served in that location).
 
 How it behaves:
 
 - **LLM: Vertex only, fail closed.** Without usable Vertex credentials the LLM is disabled (one ERROR at startup, `"llm": "disabled"`) and Match ranks heuristically; `/tailor` answers 503. The Gemini API key is never used for text generation.
-- **`VERTEX_LOCATION` outside the EU** (`global`, `us`, `us-central1`, `europe-west2` London, `europe-west6` Zurich…): the service refuses to start.
-- **Embeddings self-check:** at startup the embedding text of journal 1 (Kidney360 metadata, no personal data) is re-embedded through Vertex and compared with its stored vector. Cosine ≥ 0.999 → Vertex. Otherwise, or without Vertex credentials, query embeddings take the TEMPORARY Gemini API-key fallback, logged at ERROR with the cosine and reported as `"embeddings": "api_key_fallback"`.
+- **`VERTEX_LOCATION` or `VERTEX_EMBEDDING_LOCATION` outside the EU** (`global`, `us`, `us-central1`, `europe-west2` London, `europe-west6` Zurich…): the service refuses to start.
+- **Embeddings self-check:** at startup the embedding text of journal 1 (Kidney360 metadata, no personal data) is re-embedded through Vertex in `VERTEX_EMBEDDING_LOCATION` and compared with its stored vector. Cosine ≥ 0.999 → Vertex. Otherwise, or without Vertex credentials, query embeddings take the TEMPORARY Gemini API-key fallback, logged at ERROR with the cosine and reported as `"embeddings": "api_key_fallback"`.
 - **Retiring the API key:** if the self-check fails, rebuild the corpus vectors through Vertex with the same credentials and request as the runtime, commit them, redeploy, and delete `GEMINI_API_KEY` once `/health` reports `"embeddings": "vertex"`:
 
   ```bash
@@ -221,7 +226,7 @@ How it behaves:
   VERTEX_CREDENTIALS_FILE=/path/to/vertex-ai.json python ../05_generate_embeddings.py --provider vertex
   ```
 
-  This makes 9,246 single-text `predict` calls (gemini-embedding-001 takes one text per request).
+  This makes 9,246 single-text `predict` calls (gemini-embedding-001 takes one text per request) against `VERTEX_EMBEDDING_LOCATION` (default `europe-west4`), the same location the runtime uses, and records it as `vertex_location` in `embedding_metadata.json`.
 - Credentials are never logged; at most the first 8 characters of `private_key_id`.
 - No new package: `google-auth` (token refresh) is installed by `firebase-admin`.
 

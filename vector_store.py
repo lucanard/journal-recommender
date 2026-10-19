@@ -31,9 +31,12 @@ SELF_CHECK_JOURNAL_ID = 1
 def vertex_embed_text(vertex, model: str, text: str) -> list[float]:
     """Embed one text with gemini-embedding-001 on Vertex AI (publishers.models.predict).
 
-    Shared by the query path and 05_generate_embeddings.py so corpus and queries
-    are built with the identical request: one text per call (the model's limit),
-    outputDimensionality 768 in `parameters`, and no task_type, as at build time.
+    Shared by the query path, the startup self-check and 05_generate_embeddings.py
+    so corpus and queries are built with the identical request: one text per call
+    (the model's limit), outputDimensionality 768 in `parameters`, and no
+    task_type, as at build time. It goes to vertex.embedding_location
+    (VERTEX_EMBEDDING_LOCATION, default europe-west4), not to the text-generation
+    location: the model is not served on the `eu` multi-region.
     """
     from urllib.request import urlopen, Request
 
@@ -41,8 +44,8 @@ def vertex_embed_text(vertex, model: str, text: str) -> list[float]:
         "instances": [{"content": text}],
         "parameters": {"outputDimensionality": GEMINI_EMBEDDING_DIMENSIONS},
     }).encode()
-    req = Request(vertex.model_url(model, "predict"), data=payload,
-                  headers=vertex.headers(), method="POST")
+    req = Request(vertex.model_url(model, "predict", location=vertex.embedding_location),
+                  data=payload, headers=vertex.headers(), method="POST")
     with urlopen(req, timeout=30) as resp:
         result = json.loads(resp.read().decode())
     return result["predictions"][0]["embeddings"]["values"]
@@ -215,12 +218,14 @@ class EmbeddingService:
                       f"vector. {fallback}")
             return False
         journal_id, text, stored = sample
+        location = vertex.embedding_location
         try:
             fresh = np.asarray(vertex_embed_text(vertex, self.model, text), dtype=np.float32)
         except Exception as e:  # HTTP/auth/parse failures all mean "do not switch"
             self.vertex_self_check = {"accepted": False, "error": type(e).__name__,
                                       "http_status": getattr(e, "code", None)}
-            log.error(f"Vertex embedding self-check failed ({type(e).__name__}: {e}). {fallback}")
+            log.error(f"Vertex embedding self-check failed in {location} "
+                      f"({type(e).__name__}: {e}). {fallback}")
             return False
         cosine = _cosine(fresh, stored) if fresh.shape == stored.shape else float("nan")
         accepted = cosine >= min_cosine  # False for NaN (dimension mismatch)
@@ -229,10 +234,10 @@ class EmbeddingService:
         if accepted:
             self.vertex = vertex
             log.info(f"Vertex embedding self-check passed: cosine={cosine:.6f} on journal "
-                     f"{journal_id}. Query embeddings use Vertex AI.")
+                     f"{journal_id}. Query embeddings use Vertex AI ({location}).")
         else:
             log.error(
-                f"Vertex embedding self-check REJECTED: cosine={cosine:.6f} (threshold "
+                f"Vertex embedding self-check REJECTED in {location}: cosine={cosine:.6f} (threshold "
                 f"{min_cosine}) on journal {journal_id}, dims {fresh.shape} vs "
                 f"{stored.shape}. {fallback} Rebuild the corpus vectors through Vertex "
                 "(05_generate_embeddings.py --provider vertex) to retire the API key.")

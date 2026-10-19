@@ -14,7 +14,8 @@ Usage:
     python 05_generate_embeddings.py --provider cohere --api-key ...
     python 05_generate_embeddings.py --provider local
     python 05_generate_embeddings.py --provider local --model all-mpnet-base-v2
-    python 05_generate_embeddings.py --provider vertex   # gemini-embedding-001 on Vertex AI, EU
+    python 05_generate_embeddings.py --provider vertex   # gemini-embedding-001 on Vertex AI, EU region
+                                                         # (VERTEX_EMBEDDING_LOCATION, default europe-west4)
 
 Output:
     journal_embeddings.npz  — numpy arrays (vectors + IDs)
@@ -312,7 +313,7 @@ def embed_gemini(texts, api_key, model="gemini-embedding-001", dimensions=768):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PROVIDER: Vertex AI, EU (gemini-embedding-001) — same credentials as the app
+# PROVIDER: Vertex AI, EU region (gemini-embedding-001) — same credentials as the app
 # ═══════════════════════════════════════════════════════════════════════════════
 VERTEX_RETRY_CODES = {429, 500, 502, 503, 504}
 VERTEX_MAX_ATTEMPTS = 6
@@ -324,7 +325,9 @@ def embed_vertex(texts, vertex, model="gemini-embedding-001"):
     Uses vector_store.vertex_embed_text, shared with the runtime, so corpus and
     queries match by construction: one text per predict call (the model's limit),
     outputDimensionality 768, no task type. Credentials and location come from the
-    same VERTEX_* environment variables as the app (vertex_ai.load_vertex_auth).
+    same VERTEX_* environment variables as the app (vertex_ai.load_vertex_auth); the
+    calls go to VERTEX_EMBEDDING_LOCATION (default europe-west4), since
+    gemini-embedding-001 is not served on the `eu` multi-region.
     """
     from urllib.error import HTTPError, URLError
     from vector_store import vertex_embed_text
@@ -473,7 +476,7 @@ def main():
                       "VERTEX_CREDENTIALS_JSON (and VERTEX_PROJECT_ID if the key lacks it)")
             sys.exit(1)
         model = args.model or "gemini-embedding-001"
-        log.info(f"Using Vertex AI {model} in {vertex.location}")
+        log.info(f"Using Vertex AI {model} in {vertex.embedding_location}")
         embeddings = embed_vertex(texts, vertex, model)
         dim = len(embeddings[0])
 
@@ -511,7 +514,7 @@ def main():
     }
     if provider == "vertex":
         meta["transport"] = "vertex"
-        meta["vertex_location"] = vertex.location
+        meta["vertex_location"] = vertex.embedding_location
     with open(OUTPUT_META, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
     log.info(f"Saved: {OUTPUT_META}")
