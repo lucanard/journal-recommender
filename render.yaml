@@ -26,7 +26,12 @@ services:
       - key: VERTEX_PROJECT_ID
         value: pubfit-1a5ad
       - key: VERTEX_LOCATION
-        value: eu               # EU locations only; global/us/London/Zurich refuse to start
+        value: eu               # text generation. EU locations only; global/us/London/Zurich refuse to start
+      # Embeddings run in an EU REGION: gemini-embedding-001 is not served on
+      # the eu multi-region (404), europe-west4 serves it. Same EU allowlist;
+      # "eu" passes it but the self-check then fails. Default: europe-west4.
+      - key: VERTEX_EMBEDDING_LOCATION
+        value: europe-west4
       # Optional alternative to the Secret File: the same JSON inline.
       # - key: VERTEX_CREDENTIALS_JSON
       #   sync: false

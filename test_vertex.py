@@ -2,8 +2,9 @@
 
 Run with:  python test_vertex.py
 
-Covers the Vertex URL and Bearer header for text generation, the EU location
-allowlist, the fail-closed LLM (no Vertex credentials -> heuristic mode, never
+Covers the Vertex URL and Bearer header for text generation (eu multi-region)
+and for embeddings (europe-west4 by default, VERTEX_EMBEDDING_LOCATION), the EU
+location allowlist for both settings, the fail-closed LLM (no Vertex credentials -> heuristic mode, never
 the API key), credential hygiene (no Firebase key, nothing secret logged), the
 cached OAuth token, the embeddings self-check (accept / temporary API-key
 fallback), the Vertex corpus rebuild in 05_generate_embeddings.py, and what
@@ -44,6 +45,10 @@ PROJECT = "pubfit-1a5ad"
 KEY_ID = "0123456789abcdef0123456789abcdef01234567"
 EU_GENERATE_URL = ("https://aiplatform.eu.rep.googleapis.com/v1/projects/pubfit-1a5ad/"
                    "locations/eu/publishers/google/models/gemini-3.5-flash-lite:generateContent")
+# gemini-embedding-001 is not served on the eu multi-region (404): embeddings
+# default to the europe-west4 regional endpoint.
+EW4_PREDICT_URL = ("https://europe-west4-aiplatform.googleapis.com/v1/projects/pubfit-1a5ad/"
+                   "locations/europe-west4/publishers/google/models/gemini-embedding-001:predict")
 EU_PREDICT_URL = ("https://aiplatform.eu.rep.googleapis.com/v1/projects/pubfit-1a5ad/"
                   "locations/eu/publishers/google/models/gemini-embedding-001:predict")
 NO_CREDS_FILE = os.path.join(tempfile.gettempdir(), "pubfit-no-such-vertex-key.json")
@@ -236,6 +241,29 @@ def test_location_allowlist(sa_path):
         refused = True
     check("allowlist: valid credentials + global location refuse to load", refused)
 
+    for loc in ["global", "us", "us-central1", "europe-west2", "europe-west6"]:
+        for creds, label in ((sa_path, "valid credentials"), (NO_CREDS_FILE, "no credentials")):
+            try:
+                vertex_ai.load_vertex_auth({"VERTEX_CREDENTIALS_FILE": creds,
+                                            "VERTEX_EMBEDDING_LOCATION": loc})
+                refused, message = False, ""
+            except vertex_ai.VertexConfigError as e:
+                refused, message = True, str(e)
+            check(f"allowlist: VERTEX_EMBEDDING_LOCATION {loc!r} refused ({label})",
+                  refused and "VERTEX_EMBEDDING_LOCATION" in message, message)
+    try:
+        vertex_ai.VertexAuth(FakeCredentials(), PROJECT, "eu", "global")
+        refused = False
+    except vertex_ai.VertexConfigError:
+        refused = True
+    check("allowlist: VertexAuth refuses a global embedding location", refused)
+    try:
+        eu_auth().model_url("gemini-embedding-001", "predict", location="us-central1")
+        refused = False
+    except vertex_ai.VertexConfigError:
+        refused = True
+    check("allowlist: model_url refuses a non-EU explicit location", refused)
+
     check("allowlist: eu maps to the fixed EU REP host",
           vertex_ai.endpoint_host("eu") == "aiplatform.eu.rep.googleapis.com")
     try:
@@ -275,6 +303,14 @@ def test_llm_is_vertex_only():
     check("vertex llm: no temperature, no thinkingBudget",
           "temperature" not in gen and "thinkingBudget" not in gen.get("thinkingConfig", {}), gen)
     check("vertex llm: thought parts dropped from the answer", text == '{"rankings": []}', text)
+
+    auth = eu_auth()
+    check("vertex urls: generateContent on eu, embeddings predict on europe-west4 (same auth)",
+          auth.model_url("gemini-3.5-flash-lite", "generateContent") == EU_GENERATE_URL
+          and auth.model_url("gemini-embedding-001", "predict", location=auth.embedding_location)
+          == EW4_PREDICT_URL)
+    check("vertex urls: explicit eu location uses the REP host",
+          auth.model_url("gemini-embedding-001", "predict", location="eu") == EU_PREDICT_URL)
 
     regional = vertex_ai.VertexAuth(FakeCredentials(), PROJECT, "europe-west4")
     check("vertex llm: regional EU host",
@@ -358,6 +394,10 @@ def test_credentials(tmp, sa_path, sa_info):
               "PRIVATE KEY" not in logged and sa_info["private_key"][40:80] not in logged)
         check("creds: project from the credentials file", auth.project_id == PROJECT, auth.project_id)
         check("creds: default location eu", auth.location == "eu", auth.location)
+        check("creds: default embedding location europe-west4",
+              auth.embedding_location == "europe-west4", auth.embedding_location)
+        check("creds: log names both locations",
+              "location=eu" in logged and "embedding_location=europe-west4" in logged, logged)
         first = auth.headers()["Authorization"]
         second = auth.headers()["Authorization"]
         check("token: Bearer from the service account", first == "Bearer sa-token-1", first)
@@ -375,6 +415,19 @@ def test_credentials(tmp, sa_path, sa_info):
     check("creds: VERTEX_PROJECT_ID overrides the file",
           override is not None and override.project_id == "other-project")
     check("creds: VERTEX_LOCATION honoured", override is not None and override.location == "europe-west1")
+    check("creds: VERTEX_LOCATION does not move the embeddings",
+          override is not None and override.embedding_location == "europe-west4")
+
+    emb = vertex_ai.load_vertex_auth({"VERTEX_CREDENTIALS_FILE": sa_path,
+                                      "VERTEX_EMBEDDING_LOCATION": "Europe-West1 "})
+    check("creds: VERTEX_EMBEDDING_LOCATION honoured (normalised), generation stays eu",
+          emb is not None and emb.embedding_location == "europe-west1" and emb.location == "eu")
+    with LogCapture("vertex_ai") as logs:
+        emb_eu = vertex_ai.load_vertex_auth({"VERTEX_CREDENTIALS_FILE": sa_path,
+                                             "VERTEX_EMBEDDING_LOCATION": "eu"})
+    check("creds: VERTEX_EMBEDDING_LOCATION=eu passes the allowlist but WARNs (model not served there)",
+          emb_eu is not None and emb_eu.embedding_location == "eu"
+          and any("not served" in m for m in logs.messages(logging.WARNING)), logs.messages())
 
     inline = vertex_ai.load_vertex_auth({"VERTEX_CREDENTIALS_FILE": NO_CREDS_FILE,
                                          "VERTEX_CREDENTIALS_JSON": json.dumps(sa_info)})
@@ -410,8 +463,8 @@ def test_embedding_self_check(directory):
         svc.embed_query("a new abstract")
     body = fake.body(0)
     check("self-check accept: switched to Vertex", accepted and svc.backend == "vertex", svc.backend)
-    check("self-check accept: predict on the EU multi-region",
-          fake.requests[0].full_url == EU_PREDICT_URL, fake.requests[0].full_url)
+    check("self-check accept: predict on europe-west4 (not the eu multi-region)",
+          fake.requests[0].full_url == EW4_PREDICT_URL, fake.requests[0].full_url)
     check("self-check accept: Bearer header", fake.requests[0].get_header("Authorization") == "Bearer token-1")
     check("self-check accept: fixed text is journal 1",
           body["instances"] == [{"content": "Journal: J1 | Scope: x"}], body)
@@ -421,7 +474,7 @@ def test_embedding_self_check(directory):
     check("self-check accept: result recorded",
           svc.vertex_self_check == {"accepted": True, "journal_id": 1, "cosine": 1.0}, svc.vertex_self_check)
     check("self-check accept: queries go to Vertex",
-          len(fake.requests) == 2 and fake.requests[1].full_url == EU_PREDICT_URL
+          len(fake.requests) == 2 and fake.requests[1].full_url == EW4_PREDICT_URL
           and fake.body(1)["instances"] == [{"content": "a new abstract"}])
 
     # Reject: close but under the threshold (0.998 < 0.999) -> temporary API-key fallback.
@@ -445,7 +498,7 @@ def test_embedding_self_check(directory):
 
     # Reject: Vertex call fails (e.g. the service account lacks the permission).
     svc = EmbeddingService("gemini", "gemini-embedding-001", api_key="test-key")
-    fake = FakeUrlopen(HTTPError(EU_PREDICT_URL, 403, "Forbidden", {}, io.BytesIO(b"")))
+    fake = FakeUrlopen(HTTPError(EW4_PREDICT_URL, 403, "Forbidden", {}, io.BytesIO(b"")))
     with fake_network(fake), LogCapture("vector_store") as logs:
         accepted = svc.enable_vertex(eu_auth(), store, jsonl)
     check("self-check error: api_key_fallback + ERROR",
@@ -483,15 +536,15 @@ def test_corpus_rebuild_script():
     spec = importlib.util.spec_from_file_location("gen_embeddings", os.path.join(HERE, "05_generate_embeddings.py"))
     gen = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gen)
-    rate_limited = HTTPError(EU_PREDICT_URL, 429, "Too Many Requests", {}, io.BytesIO(b""))
+    rate_limited = HTTPError(EW4_PREDICT_URL, 429, "Too Many Requests", {}, io.BytesIO(b""))
     fake = FakeUrlopen(_predict_answer([0.1] * 768), rate_limited, _predict_answer([0.2] * 768))
     with fake_network(fake), no_sleep(), LogCapture("gen_embeddings", "__main__"):
         vectors = gen.embed_vertex(["first journal", "second journal"], eu_auth())
     check("rebuild: one vector per text, 768 dims",
           len(vectors) == 2 and all(len(v) == 768 for v in vectors), [len(v) for v in vectors])
     check("rebuild: one text per predict call, 429 retried", len(fake.requests) == 3, len(fake.requests))
-    check("rebuild: same request as the runtime (EU predict, 768, no task_type)",
-          all(r.full_url == EU_PREDICT_URL for r in fake.requests)
+    check("rebuild: same request as the runtime (europe-west4 predict, 768, no task_type)",
+          all(r.full_url == EW4_PREDICT_URL for r in fake.requests)
           and fake.body(0) == {"instances": [{"content": "first journal"}],
                                "parameters": {"outputDimensionality": 768}}, fake.body(0))
 
@@ -501,7 +554,8 @@ def test_only_predict_permission_methods():
     methods = set()
     for name in ("recommender.py", "vector_store.py", "vertex_ai.py", "05_generate_embeddings.py", "app.py"):
         source = Path(HERE, name).read_text(encoding="utf-8")
-        methods |= set(re.findall(r'model_url\([^()]*,\s*"(\w+)"\)', source))
+        # The method is model_url's second argument; a location may follow it.
+        methods |= set(re.findall(r'model_url\(\s*[^(),]+,\s*"(\w+)"', source))
     check("permissions: only generateContent and predict are called",
           methods == {"generateContent", "predict"}, methods)
 
@@ -524,10 +578,12 @@ def test_app_wiring_and_health(sa_path):
     args = SimpleNamespace(embedding_provider="gemini", embedding_key=None, llm="gemini", llm_key=None)
     client = TestClient(app_module.app)
     saved_env = {k: os.environ.get(k) for k in
-                 ("VERTEX_CREDENTIALS_FILE", "VERTEX_CREDENTIALS_JSON", "VERTEX_LOCATION", "GEMINI_API_KEY")}
+                 ("VERTEX_CREDENTIALS_FILE", "VERTEX_CREDENTIALS_JSON", "VERTEX_LOCATION",
+                  "VERTEX_EMBEDDING_LOCATION", "GEMINI_API_KEY")}
     try:
         os.environ.pop("VERTEX_CREDENTIALS_JSON", None)
         os.environ.pop("VERTEX_LOCATION", None)
+        os.environ.pop("VERTEX_EMBEDDING_LOCATION", None)
         os.environ["GEMINI_API_KEY"] = "test-key"
 
         # 1) No Vertex key uploaded yet: LLM off (heuristic), embeddings on the fallback.
@@ -555,11 +611,35 @@ def test_app_wiring_and_health(sa_path):
               first["id"] == 1 and fake.body(0)["instances"] == [{"content": first["text"]}])
         check("wiring: with Vertex creds both on vertex",
               backends.get("llm") == "vertex" and backends.get("embeddings") == "vertex", backends)
+        check("wiring: self-check went to europe-west4", fake.requests[0].full_url == EW4_PREDICT_URL,
+              fake.requests[0].full_url)
         check("wiring: /health reports eu and the self-check",
               backends.get("vertex_location") == "eu"
               and backends.get("embedding_self_check", {}).get("accepted") is True, backends)
+        check("wiring: /health reports vertex_embedding_location europe-west4",
+              backends.get("vertex_embedding_location") == "europe-west4", backends)
+        gen = app_module.engine.llm
+        gen_url = gen.vertex.model_url(gen.model, "generateContent") if gen is not None else None
+        check("wiring: generateContent stays on the eu multi-region", gen_url == EU_GENERATE_URL, gen_url)
         check("wiring: /health leaks no project id or key",
               PROJECT not in json.dumps(backends) and "key" not in json.dumps(backends).lower(), backends)
+
+        # 2b) The production failure: embeddings pointed at eu, where the model 404s.
+        os.environ["VERTEX_EMBEDDING_LOCATION"] = "eu"
+        not_found = HTTPError(EU_PREDICT_URL, 404, "Not Found", {}, io.BytesIO(b""))
+        fake = FakeUrlopen(not_found)
+        with fake_token_refresh(), fake_network(fake):
+            app_module.initialize(args)
+        backends = client.get("/health").json().get("ai_backends")
+        check("wiring: eu embeddings 404 -> LLM still vertex, embeddings api_key_fallback",
+              backends.get("llm") == "vertex" and backends.get("embeddings") == "api_key_fallback"
+              and backends.get("embedding_self_check", {}).get("http_status") == 404, backends)
+        check("wiring: /health shows where the failed self-check ran",
+              backends.get("vertex_embedding_location") == "eu"
+              and backends.get("vertex_location") == "eu", backends)
+        check("wiring: failed self-check leaks no project id",
+              PROJECT not in json.dumps(backends), backends)
+        os.environ.pop("VERTEX_EMBEDDING_LOCATION", None)
 
         # 3) Non-EU location: the service refuses to start.
         os.environ["VERTEX_LOCATION"] = "us-central1"
@@ -569,6 +649,16 @@ def test_app_wiring_and_health(sa_path):
         except vertex_ai.VertexConfigError:
             refused = True
         check("wiring: non-EU VERTEX_LOCATION stops startup", refused)
+
+        # 4) Non-EU embedding location: the service refuses to start too.
+        os.environ.pop("VERTEX_LOCATION", None)
+        os.environ["VERTEX_EMBEDDING_LOCATION"] = "global"
+        try:
+            app_module.initialize(args)
+            refused = False
+        except vertex_ai.VertexConfigError:
+            refused = True
+        check("wiring: non-EU VERTEX_EMBEDDING_LOCATION stops startup", refused)
     finally:
         for k, v in saved_env.items():
             if v is None:

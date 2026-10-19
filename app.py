@@ -699,14 +699,16 @@ def initialize(args):
 
     llm_provider = args.llm or os.environ.get("LLM_PROVIDER", "none")
 
-    # Gemini runs on Vertex AI in the EU. None when no usable Vertex credentials:
-    # the LLM is then disabled (heuristic mode) and query embeddings take the
-    # temporary API-key fallback. A non-EU VERTEX_LOCATION raises here and the
-    # service does not start.
+    # Gemini runs on Vertex AI in the EU: text generation in VERTEX_LOCATION (eu),
+    # embeddings in VERTEX_EMBEDDING_LOCATION (europe-west4). None when no usable
+    # Vertex credentials: the LLM is then disabled (heuristic mode) and query
+    # embeddings take the temporary API-key fallback. A non-EU location raises
+    # here and the service does not start.
     vertex = load_vertex_auth() if "gemini" in (emb_provider, llm_provider) else None
     if emb_provider == "gemini":
         embedder.enable_vertex(vertex, store, JOURNALS_JSONL)
-    log.info(f"Embedding: {emb_provider} ({emb_model}) via {embedder.backend}")
+    emb_where = f", {embedder.vertex.embedding_location}" if embedder.vertex is not None else ""
+    log.info(f"Embedding: {emb_provider} ({emb_model}) via {embedder.backend}{emb_where}")
 
     llm_key = args.llm_key or os.environ.get("LLM_API_KEY", "")
     llm_client = None
@@ -742,7 +744,9 @@ def _ai_backends() -> dict:
     """Which transport serves the LLM and the query embeddings. No secrets.
 
     llm: vertex | disabled (| api_key for the non-Gemini providers);
-    embeddings: vertex | api_key_fallback (temporary) | local | api_key.
+    embeddings: vertex | api_key_fallback (temporary) | local | api_key;
+    vertex_location: text generation; vertex_embedding_location: where the
+    embeddings self-check ran and, once accepted, where query embeddings go.
     """
     llm = engine.llm if engine else None
     info = {
@@ -752,6 +756,7 @@ def _ai_backends() -> dict:
     vertex = getattr(llm, "vertex", None) or getattr(embedder, "vertex", None)
     if vertex is not None:
         info["vertex_location"] = vertex.location
+        info["vertex_embedding_location"] = vertex.embedding_location
     self_check = getattr(embedder, "vertex_self_check", None)
     if self_check is not None:
         info["embedding_self_check"] = self_check
