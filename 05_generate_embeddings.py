@@ -14,6 +14,7 @@ Usage:
     python 05_generate_embeddings.py --provider cohere --api-key ...
     python 05_generate_embeddings.py --provider local
     python 05_generate_embeddings.py --provider local --model all-mpnet-base-v2
+    python 05_generate_embeddings.py --provider vertex   # gemini-embedding-001 on Vertex AI, EU
 
 Output:
     journal_embeddings.npz  — numpy arrays (vectors + IDs)
@@ -311,6 +312,45 @@ def embed_gemini(texts, api_key, model="gemini-embedding-001", dimensions=768):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# PROVIDER: Vertex AI, EU (gemini-embedding-001) — same credentials as the app
+# ═══════════════════════════════════════════════════════════════════════════════
+VERTEX_RETRY_CODES = {429, 500, 502, 503, 504}
+VERTEX_MAX_ATTEMPTS = 6
+
+
+def embed_vertex(texts, vertex, model="gemini-embedding-001"):
+    """Generate embeddings through Vertex AI with the request the app sends for queries.
+
+    Uses vector_store.vertex_embed_text, shared with the runtime, so corpus and
+    queries match by construction: one text per predict call (the model's limit),
+    outputDimensionality 768, no task type. Credentials and location come from the
+    same VERTEX_* environment variables as the app (vertex_ai.load_vertex_auth).
+    """
+    from urllib.error import HTTPError, URLError
+    from vector_store import vertex_embed_text
+
+    all_embeddings = []
+    for i, text in enumerate(texts):
+        for attempt in range(VERTEX_MAX_ATTEMPTS):
+            try:
+                all_embeddings.append(vertex_embed_text(vertex, model, text))
+                break
+            except (HTTPError, URLError) as e:
+                code = getattr(e, "code", None)
+                transient = code in VERTEX_RETRY_CODES or not isinstance(e, HTTPError)
+                if not transient or attempt == VERTEX_MAX_ATTEMPTS - 1:
+                    log.error(f"Vertex embedding failed on record {i}: {e}")
+                    raise
+                wait = min(60, 2 ** (attempt + 1))
+                log.warning(f"Vertex {code or 'network error'} on record {i}, "
+                            f"waiting {wait}s... ({attempt + 1}/{VERTEX_MAX_ATTEMPTS})")
+                time.sleep(wait)
+        if (i + 1) % 500 == 0:
+            log.info(f"  {i + 1}/{len(texts)}")
+    return all_embeddings
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # PROVIDER: Anthropic (use Claude's embedding via Voyage)
 # ═══════════════════════════════════════════════════════════════════════════════
 def embed_voyage(texts, api_key, model="voyage-3-lite"):
@@ -361,7 +401,7 @@ def embed_voyage(texts, api_key, model="voyage-3-lite"):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate journal embeddings")
-    parser.add_argument("--provider", choices=["openai", "cohere", "local", "voyage", "gemini"],
+    parser.add_argument("--provider", choices=["openai", "cohere", "local", "voyage", "gemini", "vertex"],
                         default="local", help="Embedding provider")
     parser.add_argument("--api-key", help="API key (not needed for local)")
     parser.add_argument("--model", help="Override default model name")
@@ -425,6 +465,18 @@ def main():
         embeddings = embed_gemini(texts, api_key, model)
         dim = len(embeddings[0])
     
+    elif provider == "vertex":
+        from vertex_ai import load_vertex_auth
+        vertex = load_vertex_auth()
+        if vertex is None:
+            log.error("Vertex credentials required: set VERTEX_CREDENTIALS_FILE or "
+                      "VERTEX_CREDENTIALS_JSON (and VERTEX_PROJECT_ID if the key lacks it)")
+            sys.exit(1)
+        model = args.model or "gemini-embedding-001"
+        log.info(f"Using Vertex AI {model} in {vertex.location}")
+        embeddings = embed_vertex(texts, vertex, model)
+        dim = len(embeddings[0])
+
     elif provider == "local":
         model = args.model or "all-MiniLM-L6-v2"
         log.info(f"Using local model: {model}")
@@ -448,13 +500,18 @@ def main():
     
     # Save metadata
     meta = {
-        "provider": provider,
+        # Vertex is a transport for the same Gemini model: the app keeps
+        # EMBEDDING_PROVIDER=gemini; "transport" is recorded for reference only.
+        "provider": "gemini" if provider == "vertex" else provider,
         "model": model if provider != "local" else (args.model or "all-MiniLM-L6-v2"),
         "dimensions": dim,
         "num_embeddings": len(embeddings),
         "input_file": INPUT_FILE if os.path.exists(INPUT_FILE) else FALLBACK_INPUT,
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
+    if provider == "vertex":
+        meta["transport"] = "vertex"
+        meta["vertex_location"] = vertex.location
     with open(OUTPUT_META, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2)
     log.info(f"Saved: {OUTPUT_META}")

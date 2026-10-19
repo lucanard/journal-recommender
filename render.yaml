@@ -9,13 +9,37 @@ services:
     buildCommand: pip install -r requirements-deploy.txt
     startCommand: python app.py --data-dir data --llm gemini --embedding-provider gemini --host 0.0.0.0 --port $PORT
     envVars:
-      # ─── Single API key for both LLM and embeddings ────────
-      - key: GEMINI_API_KEY
-        sync: false            # You'll set this in Render dashboard
       - key: LLM_PROVIDER
         value: gemini
       - key: EMBEDDING_PROVIDER
         value: gemini
+
+      # ─── Vertex AI, EU (Gemini Enterprise Agent Platform) ──
+      # NOTE: the live service is configured in the Render dashboard and does
+      # not read this file; these entries document what to set there.
+      # The LLM runs ONLY on Vertex AI (EU multi-region): without Vertex
+      # credentials it is disabled and Match ranks heuristically. Query
+      # embeddings use Vertex once the startup self-check passes.
+      # Credentials: a dedicated service account (never the Firebase Admin
+      # one), uploaded as a Secret File at /etc/secrets/vertex-ai.json
+      # (default path, see DEPLOY.md).
+      - key: VERTEX_PROJECT_ID
+        value: pubfit-1a5ad
+      - key: VERTEX_LOCATION
+        value: eu               # EU locations only; global/us/London/Zurich refuse to start
+      # Optional alternative to the Secret File: the same JSON inline.
+      # - key: VERTEX_CREDENTIALS_JSON
+      #   sync: false
+      # Optional: Secret File somewhere else.
+      # - key: VERTEX_CREDENTIALS_FILE
+      #   value: /etc/secrets/vertex-ai.json
+
+      # ─── Gemini API key: TEMPORARY embeddings fallback only ─
+      # Used for query embeddings only while the Vertex self-check fails
+      # (/health ai_backends.embeddings = "api_key_fallback"). Never used for
+      # text generation. Delete it once /health reports "vertex".
+      - key: GEMINI_API_KEY
+        sync: false
 
       # ─── Payments ─────────────────────────────────────────
       # Both are set in the Render dashboard, never committed.
