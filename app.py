@@ -1604,6 +1604,59 @@ def serve_frontend():
     raise HTTPException(status_code=404, detail="Frontend not found. Place index.html next to app.py.")
 
 
+# Third-party scripts and fonts the page needs (React, Babel, Firebase, Tailwind,
+# DM Sans) are served from this origin, so loading the page discloses the
+# visitor's IP address to no CDN or font host. Provenance, versions and hashes
+# are recorded in vendor/VENDOR.md.
+#
+# Only regular files with an allowlisted extension are served: the .js and
+# .woff2 files directly inside vendor/, and the .txt licence texts directly
+# inside vendor/licenses/ (the licences travel with the files they cover). Each
+# is looked up by exact file name in a table built at startup: no directory
+# listing, no path traversal, nothing else in the repository is reachable. Every
+# asset name carries its upstream version, so an upgrade is a new URL and the
+# browser may cache each file for a year.
+VENDOR_DIR = Path(__file__).parent / "vendor"
+_VENDOR_MEDIA_TYPES = {".js": "text/javascript; charset=utf-8", ".woff2": "font/woff2"}
+_LICENSE_MEDIA_TYPES = {".txt": "text/plain; charset=utf-8"}
+
+
+def _vendor_table(directory: Path, media_types: dict) -> dict:
+    """{file name: (path, media type)} for the allowlisted files directly in directory."""
+    if not directory.is_dir():
+        return {}
+    return {p.name: (p, media_types[p.suffix]) for p in sorted(directory.iterdir())
+            if p.is_file() and p.suffix in media_types}
+
+
+_VENDOR_FILES = _vendor_table(VENDOR_DIR, _VENDOR_MEDIA_TYPES)
+_LICENSE_FILES = _vendor_table(VENDOR_DIR / "licenses", _LICENSE_MEDIA_TYPES)
+_VENDOR_HEADERS = {
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "X-Content-Type-Options": "nosniff",
+}
+
+
+def _serve_from(table: dict, name: str) -> FileResponse:
+    entry = table.get(name)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Not found")
+    path, media_type = entry
+    return FileResponse(str(path), media_type=media_type, headers=dict(_VENDOR_HEADERS))
+
+
+@app.get("/vendor/{name}", include_in_schema=False)
+def serve_vendor_asset(name: str):
+    """Serve one vendored front-end file by exact name."""
+    return _serve_from(_VENDOR_FILES, name)
+
+
+@app.get("/vendor/licenses/{name}", include_in_schema=False)
+def serve_vendor_license(name: str):
+    """Serve one licence text of the vendored files by exact name."""
+    return _serve_from(_LICENSE_FILES, name)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CLI
 # ═══════════════════════════════════════════════════════════════════════════════

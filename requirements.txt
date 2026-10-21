@@ -1,6 +1,9 @@
 # ─── Core (required) ─────────────────────────────────────────
-fastapi>=0.104.0
-uvicorn>=0.24.0
+# Same pinned web stack as requirements-deploy.txt (see the note there).
+fastapi==0.142.2
+starlette==1.7.0
+uvicorn==0.54.0
+h11==0.16.0
 pydantic>=2.0.0
 numpy>=1.24.0
 

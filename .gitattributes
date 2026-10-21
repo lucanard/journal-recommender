@@ -1,0 +1,5 @@
+# Vendored third-party files are stored and checked out byte for byte. Their
+# SHA-384 hashes are pinned in index.html (integrity attributes) and in
+# vendor/VENDOR.md; an end-of-line conversion (core.autocrlf on Windows) would
+# change the bytes and the browser would refuse to run the scripts.
+vendor/** -text
