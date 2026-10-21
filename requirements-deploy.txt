@@ -1,6 +1,12 @@
 # ─── Core ─────────────────────────────────────────────────────
-fastapi>=0.104.0
-uvicorn>=0.24.0
+# The web stack is pinned so a Render build never picks up a release on the day
+# it ships. Pins checked on OSV (no known advisories) on 2026-10-19 and at least
+# two weeks old then. Upgrade deliberately: re-check OSV, run the tests, bump
+# all four together. h11 is uvicorn's HTTP/1.1 parser.
+fastapi==0.142.2
+starlette==1.7.0
+uvicorn==0.54.0
+h11==0.16.0
 pydantic>=2.0.0
 numpy>=1.24.0
 

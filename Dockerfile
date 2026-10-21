@@ -13,8 +13,9 @@ COPY 05_generate_embeddings.py ./
 # Copy data
 COPY data/ ./data/
 
-# Copy frontend
+# Copy frontend and its self-hosted third-party assets (served at /vendor/)
 COPY index.html ./
+COPY vendor/ ./vendor/
 
 EXPOSE 8000
 

@@ -5,10 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>PubFit Match — AI Journal Recommender</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231E3A8A'/><text x='16' y='23' text-anchor='middle' fill='white' font-size='18' font-weight='bold' font-family='sans-serif'>P</text></svg>"/>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone@7.23.7/babel.min.js"></script>
+<!-- Third-party scripts and fonts are self-hosted under /vendor/ (served by
+     app.py) so that no CDN or font host receives the visitor's IP address.
+     Versions, sources and SHA-384 hashes: vendor/VENDOR.md. An upgrade means a
+     new versioned file name AND a new integrity value here. -->
+<script src="/vendor/tailwindcss-play-cdn-3.4.17.js" integrity="sha384-igm5BeiBt36UU4gqwWS7imYmelpTsZlQ45FZf+XBn9MuJbn4nQr7yx1yFydocC/K"></script>
+<script src="/vendor/react-18.3.1.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z"></script>
+<script src="/vendor/react-dom-18.3.1.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1"></script>
+<script src="/vendor/babel-standalone-7.23.7.min.js" integrity="sha384-qR8cCjBLKaeE7HdZ1ixWruJRkc5giIbp6Mmva6jZW0oNATuhO7uTDR9Tm/aFO6WN"></script>
 <script>
 /* Force classic JSX runtime BEFORE any text/babel script runs.
  * Without this, recent @babel/standalone defaults to the automatic
@@ -20,15 +24,19 @@ Babel.registerPreset('react-classic', {
   presets: [[Babel.availablePresets['react'], {runtime: 'classic'}]]
 });
 </script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&display=swap" rel="stylesheet"/>
-<!-- Tally embed for institutional inquiry form -->
-<script async src="https://tally.so/widgets/embed.js"></script>
+<script src="/vendor/firebase-app-compat-10.14.1.js" integrity="sha384-ZaR6mWzmJtrRibZ1Vm7SoHFr8OXjyAuGAXalGDKqbxFT18oi/z+oZLIRFkpeNor1"></script>
+<script src="/vendor/firebase-auth-compat-10.14.1.js" integrity="sha384-I1LYojsZ5RM1cOda44Z2h42Qa6YfsQ1XkXxREnhp4ueYBR/4d1pG1K+NZM537Vsj"></script>
+<script src="/vendor/firebase-firestore-compat-10.14.1.js" integrity="sha384-Ke0FJhH7LyRqDxZ0wt+/OXV38yfQVu7g9VPEEGjYmB4RVOY/ta04uecRhsMwT7V3"></script>
+<!-- The Tally embed script (institutional enquiry form) is not loaded here: the
+     pricing page injects it only when the visitor opens the form. -->
 <style>
+/* DM Sans 4.004 (SIL OFL 1.1), variable: wght and opsz axes, normal and italic,
+   latin and latin-ext subsets. Same ranges the page used to request from Google
+   Fonts (ital,opsz,wght@0,9..40,300..800;1,9..40,300..800). */
+@font-face{font-family:'DM Sans';font-style:normal;font-weight:300 800;font-display:swap;src:url('/vendor/dm-sans-4.004-normal-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C4,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'DM Sans';font-style:normal;font-weight:300 800;font-display:swap;src:url('/vendor/dm-sans-4.004-normal-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'DM Sans';font-style:italic;font-weight:300 800;font-display:swap;src:url('/vendor/dm-sans-4.004-italic-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C4,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'DM Sans';font-style:italic;font-weight:300 800;font-display:swap;src:url('/vendor/dm-sans-4.004-italic-latin.woff2') format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 textarea,input,select,button{font-family:inherit}
@@ -71,6 +79,27 @@ const TALLY_FORM_ID='kdO4Vj';        // create form at tally.so → copy form ID
 const CALENDLY_URL='https://calendly.com/luca-narduzzi/congfit';
 const CONTACT_EMAIL='hello@pubfit.ai';
 const PRIVACY_EMAIL='privacy@pubfit.ai';
+
+/* Tally's embed script is fetched only when the visitor opens the institutional
+ * enquiry form, so viewing any page sends nothing to tally.so (each request
+ * discloses the visitor's IP address). Resolves to window.Tally; rejects if the
+ * script cannot load (blocker, offline), and a later call retries. */
+const TALLY_EMBED_SRC='https://tally.so/widgets/embed.js';
+let tallyScriptPromise=null;
+function loadTallyScript(){
+  if(window.Tally)return Promise.resolve(window.Tally);
+  if(!tallyScriptPromise){
+    tallyScriptPromise=new Promise((resolve,reject)=>{
+      const script=document.createElement('script');
+      script.src=TALLY_EMBED_SRC;
+      script.async=true;
+      script.onload=()=>resolve(window.Tally);
+      script.onerror=()=>{tallyScriptPromise=null;script.remove();reject(new Error('Tally embed script did not load'));};
+      document.head.appendChild(script);
+    });
+  }
+  return tallyScriptPromise;
+}
 
 /* FEATURE FLAGS — keep in sync with recommender.py REFERENCES_FEATURE_ENABLED */
 const REFERENCES_FEATURE_ENABLED=false;
@@ -522,24 +551,25 @@ function PricingPage(){
   }
   // Anchor jump for /pricing#institutional
   useEffect(()=>{if(window.location.hash.includes('#institutional')){const el=document.getElementById('institutional');if(el)setTimeout(()=>el.scrollIntoView({behavior:'smooth'}),100);}},[]);
-useEffect(()=>{
-  // Tally's embed script only scans once on initial load; in a React SPA the
-  // iframe doesn't exist yet at that point. Re-trigger the scan after mount.
-  const tryLoad=()=>{
-    if(window.Tally&&typeof window.Tally.loadEmbeds==='function'){
-      window.Tally.loadEmbeds();
-    }else{
-      // Script not ready yet — fall back to setting src directly
-      document.querySelectorAll('iframe[data-tally-src]').forEach(f=>{
-        if(!f.src)f.src=f.dataset.tallySrc;
-      });
-    }
-  };
-  // First attempt now, second after a beat in case the script is still loading
-  tryLoad();
-  const t=setTimeout(tryLoad,500);
-  return()=>clearTimeout(t);
-},[]);
+  // Institutional enquiry form (Tally). Nothing is requested from tally.so until
+  // the visitor clicks "Open the enquiry form": the iframe is rendered, then the
+  // embed script is loaded and fills it (dynamic height). If the script cannot
+  // load, the iframe gets its src directly, as before.
+  const [tallyOpen,setTallyOpen]=useState(false);
+  useEffect(()=>{
+    if(!tallyOpen)return;
+    let active=true;
+    const fillDirectly=()=>document.querySelectorAll('iframe[data-tally-src]').forEach(f=>{if(!f.src)f.src=f.dataset.tallySrc;});
+    (async()=>{
+      try{
+        const tally=await loadTallyScript();
+        if(!active)return;
+        if(tally&&typeof tally.loadEmbeds==='function'){tally.loadEmbeds();return;}
+      }catch(e){/* blocked or offline: fall back to the plain iframe below */}
+      if(active)fillDirectly();
+    })();
+    return()=>{active=false;};
+  },[tallyOpen]);
   return(<div className="bg-white">
   <section className="bg-gradient-to-br from-[#1E3A8A] to-[#14B8A6] text-white py-20"><div className="max-w-4xl mx-auto px-4 text-center"><h1 className="text-5xl font-bold mb-6">Pay only for what you use</h1><p className="text-xl text-gray-100">Buy credits — no subscriptions, valid for 1 year.</p></div></section>
   <section className="py-20"><div className="max-w-7xl mx-auto px-4">
@@ -557,8 +587,14 @@ useEffect(()=>{
     <div className="grid md:grid-cols-3 gap-6 mb-10">{[{t:'Per-seat or pooled credits',d:'Choose what fits your team — individual researcher accounts or shared credit pool.'},{t:'Invoicing & purchase orders',d:'No credit card required. We accept POs and standard procurement.'},{t:'Volume pricing',d:'Discounts scale with seat count. Most departments save 30–50% vs individual packs.'}].map((f,i)=><div key={i} className="bg-white/10 rounded-xl p-6 border border-white/20"><h3 className="font-bold mb-2">{f.t}</h3><p className="text-sm text-gray-100">{f.d}</p></div>)}</div>
     <div className="bg-white rounded-xl p-8 text-gray-700"><h3 className="text-2xl font-bold text-[#1E3A8A] mb-4 text-center">Get in touch</h3><p className="text-center text-gray-600 mb-6">Tell us about your team — we'll send a quote within 2 business days, or you can book a 30-minute intro call.</p>
       <div className="grid md:grid-cols-2 gap-4 mb-6">
-        {/* Tally embed — replace TALLY_FORM_ID at the top of this file once your form is live */}
-        <iframe data-tally-src={`https://tally.so/embed/${TALLY_FORM_ID}?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1`} loading="lazy" width="100%" height="320" frameBorder="0" title="Institutional inquiry form" className="rounded-lg border border-gray-200"></iframe>
+        {/* Tally embed (TALLY_FORM_ID at the top of this file). The iframe exists only once the visitor opens the form. */}
+        {tallyOpen
+          ?<iframe data-tally-src={`https://tally.so/embed/${TALLY_FORM_ID}?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1`} loading="lazy" width="100%" height="320" frameBorder="0" title="Institutional inquiry form" className="rounded-lg border border-gray-200"></iframe>
+          :<div className="flex flex-col items-center justify-center gap-4 min-h-[320px] p-6 rounded-lg border border-gray-200 bg-gray-50 text-center">
+            <span className="w-10 h-10 text-[#1E3A8A]"><I.FileEdit/></span>
+            <button type="button" onClick={()=>setTallyOpen(true)} className="px-6 py-3 bg-[#1E3A8A] text-white font-semibold rounded-lg hover:bg-[#162E6E]">Open the enquiry form</button>
+            <p className="text-xs text-gray-500 max-w-xs">The form is provided by Tally (tally.so). Opening it loads it from their servers, which receive your IP address.</p>
+          </div>}
         <div className="flex flex-col justify-center gap-4">
           <a href={CALENDLY_URL} target="_blank" rel="noopener noreferrer" className="block w-full py-4 bg-[#14B8A6] text-white text-center font-semibold rounded-lg hover:bg-[#0F9B8E] flex items-center justify-center gap-2"><span className="w-5 h-5"><I.Clock/></span>Book a 30-min call</a>
           <a href={`mailto:${CONTACT_EMAIL}?subject=Institutional inquiry`} className="block w-full py-4 border-2 border-[#1E3A8A] text-[#1E3A8A] text-center font-semibold rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2"><span className="w-5 h-5"><I.Mail/></span>Email us directly</a>
