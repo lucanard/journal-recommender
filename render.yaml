@@ -65,8 +65,11 @@ services:
       # Unset, app.py falls back to https://app.pubfit.ai.
       #
       # The success and cancel URLs are built from this value on every
-      # checkout. The webhook endpoint is registered in the Stripe dashboard
-      # and has to be https://app.pubfit.ai/stripe-webhook.
+      # checkout. The webhook endpoint registered in the Stripe dashboard must
+      # reach this service: today it is
+      # https://journal-recommender.onrender.com/stripe-webhook (Render's own
+      # host, independent of DNS); https://app.pubfit.ai/stripe-webhook also
+      # works. Never pubfit.ai, which serves the marketing site.
       - key: PUBLIC_BASE_URL
         value: https://app.pubfit.ai
 
