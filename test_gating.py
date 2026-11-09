@@ -4,7 +4,8 @@ Run with:  python test_gating.py
 
 These cover the decisions that used to live in the browser — who is signed in,
 how many results come back, whether a credit is spent — plus the Stripe redirect
-URLs, which previously sent every paying customer to a 404.
+URLs, which previously sent every paying customer to a 404, the CORS origins and
+the headers that stop other sites framing the page.
 
 /recommend is not exercised end to end: the vector store holds Gemini embeddings
 and a real run needs an API key. The engine is stubbed instead and we assert on
@@ -13,10 +14,13 @@ control. No network calls, no credentials, no Firebase project required.
 """
 import os
 import sys
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 os.environ.setdefault("PUBLIC_BASE_URL", "https://app.pubfit.ai")
+# The CORS checks assert on the list app.py derives, not on an override.
+os.environ.pop("ALLOWED_ORIGINS", None)
 sys.argv = ["app.py"]
 sys.path.insert(0, HERE)
 os.chdir(HERE)
@@ -208,6 +212,112 @@ def test_checkout(app_module, client):
         stripe.checkout.Session.create = original
 
 
+@contextmanager
+def env_var(name, value):
+    """Set an environment variable (None removes it) and restore it afterwards."""
+    saved = os.environ.pop(name, None)
+    if value is not None:
+        os.environ[name] = value
+    try:
+        yield
+    finally:
+        os.environ.pop(name, None)
+        if saved is not None:
+            os.environ[name] = saved
+
+
+def test_public_base_url(app_module, client):
+    """Unset, the base URL is the app's own domain, never the marketing site."""
+    import stripe
+    captured = {}
+
+    class FakeSession:
+        id = "cs_test_stub"
+        url = "https://checkout.stripe.com/stub"
+
+    def fake_create(**kwargs):
+        captured.update(kwargs)
+        return FakeSession()
+
+    with env_var("PUBLIC_BASE_URL", None):
+        base = app_module._public_base_url()
+        check("base url: unset falls back to app.pubfit.ai", base == "https://app.pubfit.ai", base)
+
+        app_module.STRIPE_AVAILABLE = True
+        original = stripe.checkout.Session.create
+        stripe.checkout.Session.create = staticmethod(fake_create)
+        try:
+            with env_var("STRIPE_SECRET_KEY", "sk_test_stub"):
+                r = client.post("/create-checkout-session", headers={"Authorization": "Bearer valid"},
+                                json={"pack_id": "starter", "uid": "x"})
+        finally:
+            stripe.checkout.Session.create = original
+        check("base url: checkout created with the fallback", r.status_code == 200, r.text[:200])
+        check("base url: success URL on app.pubfit.ai",
+              captured.get("success_url") == "https://app.pubfit.ai/?purchase=success"
+              "&session_id={CHECKOUT_SESSION_ID}#/dashboard", captured.get("success_url"))
+        check("base url: cancel URL on app.pubfit.ai",
+              captured.get("cancel_url") == "https://app.pubfit.ai/?purchase=cancelled#/pricing",
+              captured.get("cancel_url"))
+
+    with env_var("PUBLIC_BASE_URL", "https://x.example/"):
+        base = app_module._public_base_url()
+        check("base url: env value used, trailing slash dropped", base == "https://x.example", base)
+
+
+def test_debug_endpoint_removed(client):
+    """/stripe-debug described the payment and auth setup to anyone who asked; it is gone."""
+    r = client.get("/stripe-debug")
+    check("debug: /stripe-debug returns 404", r.status_code == 404, r.status_code)
+
+
+def test_cors_origins(app_module, client):
+    """Only the app's own origin (and local development) may call the API cross-site."""
+    expected = ["https://app.pubfit.ai", "http://localhost:8000", "http://127.0.0.1:8000"]
+    check("cors: derived list is app.pubfit.ai plus localhost, once each",
+          app_module.ALLOWED_ORIGINS == expected, app_module.ALLOWED_ORIGINS)
+
+    def preflight(origin):
+        return client.options("/recommend", headers={
+            "Origin": origin, "Access-Control-Request-Method": "POST"})
+
+    for origin in ["https://pubfit.ai", "https://www.pubfit.ai"]:
+        r = preflight(origin)
+        check(f"cors: {origin} preflight refused", "access-control-allow-origin" not in r.headers,
+              r.headers.get("access-control-allow-origin"))
+    r = preflight("https://app.pubfit.ai")
+    check("cors: app.pubfit.ai preflight allowed",
+          r.status_code == 200 and r.headers.get("access-control-allow-origin") == "https://app.pubfit.ai",
+          (r.status_code, r.headers.get("access-control-allow-origin")))
+
+
+def test_security_headers(client):
+    """The page cannot be framed; the vendored assets keep their own headers."""
+    r = client.get("/")
+    check("html: / served as HTML", r.status_code == 200
+          and r.headers.get("content-type", "").startswith("text/html"), r.status_code)
+    expected = {
+        "content-security-policy": "frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "x-content-type-options": "nosniff",
+    }
+    for name, value in expected.items():
+        check(f"html: {name} is {value}", r.headers.get(name) == value, r.headers.get(name))
+    for name in ["cross-origin-opener-policy", "cross-origin-embedder-policy"]:
+        check(f"html: no {name}", name not in r.headers, r.headers.get(name))
+
+    r = client.get("/vendor/react-18.3.1.production.min.js")
+    check("vendor: asset served", r.status_code == 200, r.status_code)
+    check("vendor: cached for a year, immutable",
+          r.headers.get("cache-control") == "public, max-age=31536000, immutable",
+          r.headers.get("cache-control"))
+    check("vendor: nosniff kept", r.headers.get("x-content-type-options") == "nosniff",
+          r.headers.get("x-content-type-options"))
+    check("vendor: page-only headers not applied", "x-frame-options" not in r.headers,
+          r.headers.get("x-frame-options"))
+
+
 def test_packs_match_the_pricing_page(app_module):
     """The credit amounts the backend grants must match what the page sells.
 
@@ -251,6 +361,10 @@ def main():
     test_credit_arithmetic(app_module)
     test_rate_limit(app_module, client)
     test_checkout(app_module, client)
+    test_public_base_url(app_module, client)
+    test_debug_endpoint_removed(client)
+    test_cors_origins(app_module, client)
+    test_security_headers(client)
     test_packs_match_the_pricing_page(app_module)
 
     print()

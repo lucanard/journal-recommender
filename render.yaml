@@ -58,19 +58,18 @@ services:
       # ─── Public URL ───────────────────────────────────────
       # Where Stripe sends the customer back after checkout, and the default
       # CORS origin. Must match the domain actually serving the app, which is
-      # the subdomain: pubfit.ai is being handed to the PubFit marketing site
-      # (the lucanard/pubfit-website repo, Render service reviewpro-site) and
-      # this service keeps app.pubfit.ai, already attached and verified with
-      # its certificate issued.
+      # app.pubfit.ai. pubfit.ai and www.pubfit.ai were handed to the PubFit
+      # marketing site (the lucanard/reviewpro-website repo, Render service
+      # reviewpro-site), so a pubfit.ai value here would return paying
+      # customers from Stripe to marketing pages instead of their dashboard.
+      # Unset, app.py falls back to https://app.pubfit.ai.
       #
-      # This value has to be the subdomain BEFORE pubfit.ai is detached from
-      # this service. In the other order there is a window where a paying
-      # customer returns from Stripe to a pubfit.ai that now serves marketing
-      # pages instead of their dashboard.
-      #
-      # The remaining half of the move is outside this repo: the success and
-      # cancel URLs and the webhook endpoint registered in the Stripe
-      # dashboard.
+      # The success and cancel URLs are built from this value on every
+      # checkout. The webhook endpoint registered in the Stripe dashboard must
+      # reach this service: today it is
+      # https://journal-recommender.onrender.com/stripe-webhook (Render's own
+      # host, independent of DNS); https://app.pubfit.ai/stripe-webhook also
+      # works. Never pubfit.ai, which serves the marketing site.
       - key: PUBLIC_BASE_URL
         value: https://app.pubfit.ai
 
@@ -82,10 +81,12 @@ services:
         value: "true"
       - key: RATE_LIMIT_PER_MINUTE
         value: "20"
-      # Comma-separated. Leave unset to derive it from PUBLIC_BASE_URL
-      # (plus the pubfit.ai / app.pubfit.ai transition origins).
+      # Comma-separated. Leave unset to derive it from PUBLIC_BASE_URL (plus
+      # app.pubfit.ai and the localhost / 127.0.0.1 port 8000 dev origins). The
+      # frontend is same-origin, so only a page on another site that calls
+      # this API needs an entry here.
       # - key: ALLOWED_ORIGINS
-      #   value: https://pubfit.ai,https://www.pubfit.ai,https://app.pubfit.ai
+      #   value: https://app.pubfit.ai
 
 # ─── Firebase Admin credentials ───────────────────────────────
 # Required for credit accounting AND for token verification, so the service
