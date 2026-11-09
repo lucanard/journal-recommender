@@ -635,6 +635,21 @@ app = FastAPI(
     version="1.1.0",
 )
 
+# The app is served from app.pubfit.ai. pubfit.ai is the marketing site (another
+# codebase), so falling back to it would send customers returning from Stripe to
+# marketing pages instead of their dashboard.
+DEFAULT_PUBLIC_BASE_URL = "https://app.pubfit.ai"
+
+
+def _public_base_url() -> str:
+    """Origin serving the app, without a trailing slash.
+
+    Used for the Stripe return URLs and as the default CORS origin. Read from
+    PUBLIC_BASE_URL on every call; never derived from request headers.
+    """
+    return (os.environ.get("PUBLIC_BASE_URL") or DEFAULT_PUBLIC_BASE_URL).rstrip("/")
+
+
 # CORS is restricted to the domains that actually serve the app. The frontend is
 # served from the same origin as the API, so normal traffic never consults this;
 # it only governs who may call the API from someone else's site.
@@ -642,12 +657,12 @@ _origins_env = os.environ.get("ALLOWED_ORIGINS", "").strip()
 if _origins_env:
     ALLOWED_ORIGINS = [o.strip() for o in _origins_env.split(",") if o.strip()]
 else:
-    _public_origin = os.environ.get("PUBLIC_BASE_URL", "https://pubfit.ai").rstrip("/")
-    # Rebrand transition: the app is reachable on app.pubfit.ai while pubfit.ai
-    # still serves it too. Both stay allowed until the old origin is retired.
-    _transition_origins = ["https://pubfit.ai", "https://www.pubfit.ai", "https://app.pubfit.ai"]
-    ALLOWED_ORIGINS = [_public_origin, "http://localhost:8000", "http://127.0.0.1:8000"]
-    ALLOWED_ORIGINS += [o for o in _transition_origins if o not in ALLOWED_ORIGINS]
+    # app.pubfit.ai stays allowed when PUBLIC_BASE_URL names another host. pubfit.ai
+    # and www.pubfit.ai serve the marketing site, which makes no calls to this API,
+    # so they are not allowed.
+    ALLOWED_ORIGINS = [_public_base_url(), "http://localhost:8000", "http://127.0.0.1:8000"]
+    if DEFAULT_PUBLIC_BASE_URL not in ALLOWED_ORIGINS:
+        ALLOWED_ORIGINS.append(DEFAULT_PUBLIC_BASE_URL)
 
 app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -1420,9 +1435,8 @@ def create_checkout_session(request: CheckoutRequest, raw_request: Request):
         raise HTTPException(status_code=400, detail=f"Unknown pack_id '{request.pack_id}'. Valid: {list(PACKS.keys())}")
 
     stripe.api_key = stripe_key
-    # Determine the public base URL for success/cancel redirects.
-    # Prefer explicit env var; fall back to pubfit.ai.
-    base_url = os.environ.get("PUBLIC_BASE_URL", "https://pubfit.ai").rstrip("/")
+    # Success/cancel redirects go to PUBLIC_BASE_URL (default: app.pubfit.ai).
+    base_url = _public_base_url()
     try:
         session = stripe.checkout.Session.create(
             mode="payment",  # one-time payment, not subscription
@@ -1571,28 +1585,18 @@ async def stripe_webhook(request: Request):
         raise HTTPException(status_code=500, detail=f"Credit grant failed: {str(e)}")
 
 
-@app.get("/stripe-debug")
-def stripe_debug():
-    """
-    Quick sanity-check endpoint to see if Stripe + Firebase are wired up.
-    Returns booleans only — no secrets leak. Remove after launch if you want.
-    """
-    secret_file_path = os.environ.get("FIREBASE_ADMIN_SDK_FILE") or "/etc/secrets/firebase-admin.json"
-    return {
-        "stripe_library_installed": STRIPE_AVAILABLE,
-        "stripe_key_set": bool(os.environ.get("STRIPE_SECRET_KEY")),
-        "webhook_secret_set": bool(os.environ.get("STRIPE_WEBHOOK_SECRET")),
-        "firebase_admin_installed": FIREBASE_ADMIN_AVAILABLE,
-        "firebase_secret_file_exists": Path(secret_file_path).is_file(),
-        "firebase_secret_file_path": secret_file_path,
-        "firebase_admin_json_env_set": bool(os.environ.get("FIREBASE_ADMIN_SDK_JSON")),
-        "firebase_client_ready": _get_firestore_client() is not None,
-        "packs_configured": list(PACKS.keys()),
-        "public_base_url": os.environ.get("PUBLIC_BASE_URL", "https://pubfit.ai"),
-        "auth_enforced": AUTH_ENFORCED,
-        "allowed_origins": ALLOWED_ORIGINS,
-        "rate_limit_per_minute": RATE_LIMIT_PER_MINUTE,
-    }
+# Headers for the HTML page only. frame-ancestors and X-Frame-Options stop other
+# sites framing it (clickjacking on "Buy pack" and the sign-in modal). This is not
+# a full CSP: the in-browser Babel build needs unsafe-eval. Referrer-Policy keeps
+# the origin on cross-origin requests, which the Firebase API key's referrer
+# restriction relies on. No COOP/COEP: COOP same-origin breaks Firebase's
+# signInWithPopup, and COEP blocks the Firebase and Tally iframes.
+_HTML_SECURITY_HEADERS = {
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "X-Content-Type-Options": "nosniff",
+}
 
 
 @app.get("/", include_in_schema=False)
@@ -1600,7 +1604,7 @@ def serve_frontend():
     """Serve the frontend UI."""
     html_path = Path(__file__).parent / "index.html"
     if html_path.exists():
-        return FileResponse(str(html_path), media_type="text/html")
+        return FileResponse(str(html_path), media_type="text/html", headers=dict(_HTML_SECURITY_HEADERS))
     raise HTTPException(status_code=404, detail="Frontend not found. Place index.html next to app.py.")
 
 
