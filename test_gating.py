@@ -292,7 +292,8 @@ def test_cors_origins(app_module, client):
 
 
 def test_security_headers(client):
-    """The page cannot be framed; the vendored assets keep their own headers."""
+    """The page cannot be framed and is revalidated on every load; the vendored
+    assets keep their own headers."""
     r = client.get("/")
     check("html: / served as HTML", r.status_code == 200
           and r.headers.get("content-type", "").startswith("text/html"), r.status_code)
@@ -301,6 +302,7 @@ def test_security_headers(client):
         "x-frame-options": "DENY",
         "referrer-policy": "strict-origin-when-cross-origin",
         "x-content-type-options": "nosniff",
+        "cache-control": "no-cache",
     }
     for name, value in expected.items():
         check(f"html: {name} is {value}", r.headers.get(name) == value, r.headers.get(name))

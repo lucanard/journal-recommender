@@ -1598,13 +1598,19 @@ _HTML_SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
 }
 
+# The page must be revalidated on every load so a deploy reaches returning
+# visitors at once. Without Cache-Control, browsers guess a freshness lifetime
+# from Last-Modified and can keep showing an old index.html for days. The assets
+# it loads are versioned under /vendor/ and keep their year-long cache.
+_HTML_HEADERS = {**_HTML_SECURITY_HEADERS, "Cache-Control": "no-cache"}
+
 
 @app.get("/", include_in_schema=False)
 def serve_frontend():
     """Serve the frontend UI."""
     html_path = Path(__file__).parent / "index.html"
     if html_path.exists():
-        return FileResponse(str(html_path), media_type="text/html", headers=dict(_HTML_SECURITY_HEADERS))
+        return FileResponse(str(html_path), media_type="text/html", headers=dict(_HTML_HEADERS))
     raise HTTPException(status_code=404, detail="Frontend not found. Place index.html next to app.py.")
 
 
